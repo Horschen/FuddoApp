@@ -43,10 +43,12 @@ type GradingStatus = {
   kihon: GradingStatusValue;
   kata: GradingStatusValue;
   kumite: GradingStatusValue;
+  physical: GradingStatusValue;
 };
 
 type Member = {
   id: string;
+  userId: string;
   firstName: string;
   lastName: string;
   age: number;
@@ -54,12 +56,13 @@ type Member = {
   nextBeltRank: BeltRank;
   attendedSessions: number;
   requiredSessions: number;
-  progress: number; // 0–1
+  progress: number;
   avatarUrl: string;
   memberComment: string;
   instructorComment: string;
   visibility: VisibilitySettings;
   gradingStatus: GradingStatus;
+  physicalEnabled: boolean;
 };
 
 //
@@ -73,7 +76,7 @@ function getBeltColor(belt: BeltRank): string {
     case "8_kyu":
       return "bg-yellow-900/40";
     case "7_kyu":
-      return "bg-orange-900/40";
+      return "bg-orange-500/40";
     case "6_kyu":
       return "bg-green-900/40";
     case "5_kyu":
@@ -86,19 +89,8 @@ function getBeltColor(belt: BeltRank): string {
       return "bg-amber-800/40";
     case "1_kyu":
       return "bg-amber-700/40";
-    case "1_dan":
-    case "2_dan":
-    case "3_dan":
-    case "4_dan":
-    case "5_dan":
-    case "6_dan":
-    case "7_dan":
-    case "8_dan":
-    case "9_dan":
-    case "10_dan":
-      return "bg-gray-800/60";
     default:
-      return "bg-gray-800/40";
+      return "bg-gray-800/60";
   }
 }
 
@@ -154,7 +146,7 @@ function getGradingLabelAndColor(value: GradingStatusValue) {
     case "not_ready":
       return { label: "Icke redo", color: "bg-red-900/50 text-red-200" };
     case "partial":
-      return { label: "Delvis redo", color: "bg-amber-900/50 text-amber-100" };
+      return { label: "Delvis redo", color: "bg-orange-500/70 text-white" };
     case "ready":
       return { label: "Redo", color: "bg-emerald-900/50 text-emerald-100" };
     default:
@@ -162,38 +154,58 @@ function getGradingLabelAndColor(value: GradingStatusValue) {
   }
 }
 
-// 50% teknik + 50% närvaro
 function calculateProgress(
   status: GradingStatus,
   attended: number,
-  required: number
+  required: number,
+  physicalEnabled: boolean
 ): number {
-  const valueOf = (v: GradingStatusValue) => {
-    if (v === "ready") return 1;
-    if (v === "partial") return 0.5;
-    return 0;
-  };
+  const valueOf = (v: GradingStatusValue) =>
+    v === "ready" ? 1 : v === "partial" ? 0.5 : 0;
 
-  const techTotal =
-    valueOf(status.kihon) + valueOf(status.kata) + valueOf(status.kumite);
-  const techScore = techTotal / 3;
+  const parts = [status.kihon, status.kata, status.kumite];
+  if (physicalEnabled) parts.push(status.physical);
 
-  let attScore = 0;
-  if (required > 0) {
-    attScore = Math.min(attended / required, 1);
-  }
+  const techScore =
+    parts.reduce((sum, v) => sum + valueOf(v), 0) / parts.length;
+
+  const attScore = required > 0 ? Math.min(attended / required, 1) : 0;
 
   return 0.5 * techScore + 0.5 * attScore;
 }
 
-// Liten tårta (listan)
+function getRequiredSessionsForNextBelt(
+  current: BeltRank,
+  next: BeltRank
+): number {
+  const idx = beltOrder.indexOf(current);
+
+  if (idx >= beltOrder.indexOf("9_kyu") && idx <= beltOrder.indexOf("3_kyu"))
+    return 30;
+  if (idx >= beltOrder.indexOf("3_kyu") && idx <= beltOrder.indexOf("1_kyu"))
+    return 60;
+  if (current === "1_kyu" && next === "1_dan") return 120;
+  if (current === "1_dan" && next === "2_dan") return 240;
+  if (current === "2_dan" && next === "3_dan") return 360;
+  if (current === "3_dan" && next === "4_dan") return 480;
+  if (current === "5_dan" && next === "6_dan") return 600;
+  if (current === "6_dan" && next === "7_dan") return 720;
+  return 0;
+}
+
+function getNextBeltRank(current: BeltRank): BeltRank {
+  const idx = beltOrder.indexOf(current);
+  if (idx === -1 || idx === beltOrder.length - 1) return current;
+  return beltOrder[idx + 1];
+}
+
 function ProgressCircle({ progress }: { progress: number }) {
   const clamped = Math.max(0, Math.min(1, progress));
   const percentage = Math.round(clamped * 100);
 
   let color = "stroke-red-500";
   if (clamped >= 0.75) color = "stroke-emerald-500";
-  else if (clamped >= 0.5) color = "stroke-orange-400";
+  else if (clamped >= 0.5) color = "stroke-orange-500";
 
   return (
     <div className="relative h-8 w-8">
@@ -219,14 +231,13 @@ function ProgressCircle({ progress }: { progress: number }) {
   );
 }
 
-// Stor tårta (profil)
 function LargeProgressCircle({ progress }: { progress: number }) {
   const clamped = Math.max(0, Math.min(1, progress));
   const percentage = Math.round(clamped * 100);
 
   let color = "stroke-red-500";
   if (clamped >= 0.75) color = "stroke-emerald-500";
-  else if (clamped >= 0.5) color = "stroke-orange-400";
+  else if (clamped >= 0.5) color = "stroke-orange-500";
 
   return (
     <div className="relative h-20 w-20">
@@ -253,93 +264,7 @@ function LargeProgressCircle({ progress }: { progress: number }) {
 }
 
 //
-// --- Dummy-data (fallback om Supabase är tom eller felar) ---
-//
-
-const DUMMY_MEMBERS: Member[] = [
-  {
-    id: "dummy-1",
-    firstName: "Anna",
-    lastName: "Svensson",
-    age: 12,
-    beltRank: "6_kyu",
-    nextBeltRank: "5_kyu",
-    attendedSessions: 18,
-    requiredSessions: 30,
-    progress: 0, // sätts när vi använder den
-    avatarUrl: "/main.png",
-    memberComment:
-      "Bra utveckling denna termin. Fortsätt jobba med balans i sparkarna.",
-    instructorComment:
-      "Tappar fokus efter ~30 min. Håll koll på hennes ork och ge korta pauser.",
-    visibility: {
-      showAge: true,
-      showBeltInfo: true,
-      showGradingStatus: true,
-      showMemberComment: true,
-    },
-    gradingStatus: {
-      kihon: "partial",
-      kata: "ready",
-      kumite: "not_ready",
-    },
-  },
-  {
-    id: "dummy-2",
-    firstName: "Erik",
-    lastName: "Larsson",
-    age: 15,
-    beltRank: "3_kyu",
-    nextBeltRank: "2_kyu",
-    attendedSessions: 10,
-    requiredSessions: 60,
-    progress: 0,
-    avatarUrl: "/main.png",
-    memberComment: "Stabil närvaro. Behöver mer självförtroende i kumite.",
-    instructorComment:
-      "Kan bli lite för passiv i sparring. Testa att ge tydligare uppgifter.",
-    visibility: {
-      showAge: true,
-      showBeltInfo: true,
-      showGradingStatus: false,
-      showMemberComment: true,
-    },
-    gradingStatus: {
-      kihon: "not_ready",
-      kata: "partial",
-      kumite: "partial",
-    },
-  },
-  {
-    id: "dummy-3",
-    firstName: "Sara",
-    lastName: "Nilsson",
-    age: 20,
-    beltRank: "1_dan",
-    nextBeltRank: "2_dan",
-    attendedSessions: 120,
-    requiredSessions: 120,
-    progress: 0,
-    avatarUrl: "/main.png",
-    memberComment: "Väldigt bra tekniskt. Nästa steg: mer ledarroll.",
-    instructorComment:
-      "Potentiell senpai/instruktör. Ge mer ansvar i uppvärmningar.",
-    visibility: {
-      showAge: true,
-      showBeltInfo: true,
-      showGradingStatus: true,
-      showMemberComment: false,
-    },
-    gradingStatus: {
-      kihon: "ready",
-      kata: "ready",
-      kumite: "ready",
-    },
-  },
-];
-
-//
-// --- Supabase-hämtning ---
+// --- Supabase-funktioner ---
 //
 
 async function fetchMembersFromSupabase(): Promise<Member[]> {
@@ -348,6 +273,7 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
     .select(
       `
       id,
+      user_id,
       first_name,
       last_name,
       age,
@@ -365,7 +291,9 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
       visibility_show_member_comment,
       grading_kihon,
       grading_kata,
-      grading_kumite
+      grading_kumite,
+      grading_physical,
+      physical_enabled
     `
     );
 
@@ -375,55 +303,41 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
   }
 
   if (!data || data.length === 0) {
-    console.warn("Supabase: inga medlemmar hittades, använder dummy-data.");
-    const withProgress = DUMMY_MEMBERS.map((m) => ({
-      ...m,
-      progress: calculateProgress(
-        m.gradingStatus,
-        m.attendedSessions,
-        m.requiredSessions
-      ),
-    }));
-    return withProgress;
+    return [];
   }
 
-  const members: Member[] = data.map((row: any) => {
+  return data.map((row: any) => {
     const gradingStatus: GradingStatus = {
       kihon: (row.grading_kihon as GradingStatusValue) ?? "not_ready",
       kata: (row.grading_kata as GradingStatusValue) ?? "not_ready",
       kumite: (row.grading_kumite as GradingStatusValue) ?? "not_ready",
+      physical: (row.grading_physical as GradingStatusValue) ?? "not_ready",
     };
 
     const visibility: VisibilitySettings = {
-      showAge:
-        row.visibility_show_age !== null ? row.visibility_show_age : true,
-      showBeltInfo:
-        row.visibility_show_belt_info !== null
-          ? row.visibility_show_belt_info
-          : true,
-      showGradingStatus:
-        row.visibility_show_grading_status !== null
-          ? row.visibility_show_grading_status
-          : true,
-      showMemberComment:
-        row.visibility_show_member_comment !== null
-          ? row.visibility_show_member_comment
-          : true,
+      showAge: row.visibility_show_age ?? true,
+      showBeltInfo: row.visibility_show_belt_info ?? true,
+      showGradingStatus: row.visibility_show_grading_status ?? true,
+      showMemberComment: row.visibility_show_member_comment ?? true,
     };
+
+    const physicalEnabled: boolean = row.physical_enabled ?? false;
 
     const computedProgress = calculateProgress(
       gradingStatus,
       row.attended_sessions ?? 0,
-      row.required_sessions ?? 0
+      row.required_sessions ?? 0,
+      physicalEnabled
     );
 
     return {
       id: row.id,
+      userId: row.user_id ?? "",
       firstName: row.first_name,
       lastName: row.last_name,
       age: row.age ?? 0,
-      beltRank: row.belt_rank as BeltRank,
-      nextBeltRank: row.next_belt_rank as BeltRank,
+      beltRank: (row.belt_rank as BeltRank) ?? "9_kyu",
+      nextBeltRank: (row.next_belt_rank as BeltRank) ?? "8_kyu",
       attendedSessions: row.attended_sessions ?? 0,
       requiredSessions: row.required_sessions ?? 0,
       progress: row.progress ?? computedProgress,
@@ -432,15 +346,167 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
       instructorComment: row.instructor_comment ?? "",
       visibility,
       gradingStatus,
+      physicalEnabled,
     };
   });
+}
 
-  console.log("Supabase: hämtade medlemmar:", members);
-  return members;
+async function updateMemberInSupabase(member: Member) {
+  const { id } = member;
+
+  console.log("updateMemberInSupabase() start", { id });
+
+  const { data, error } = await supabase
+    .from("members")
+    .update({
+      first_name: member.firstName,
+      last_name: member.lastName,
+      age: member.age,
+      belt_rank: member.beltRank,
+      next_belt_rank: member.nextBeltRank,
+      attended_sessions: member.attendedSessions,
+      required_sessions: member.requiredSessions,
+      progress: member.progress,
+      avatar_url: member.avatarUrl,
+      member_comment: member.memberComment,
+      instructor_comment: member.instructorComment,
+      visibility_show_age: member.visibility.showAge,
+      visibility_show_belt_info: member.visibility.showBeltInfo,
+      visibility_show_grading_status: member.visibility.showGradingStatus,
+      visibility_show_member_comment: member.visibility.showMemberComment,
+      grading_kihon: member.gradingStatus.kihon,
+      grading_kata: member.gradingStatus.kata,
+      grading_kumite: member.gradingStatus.kumite,
+      grading_physical: member.gradingStatus.physical,
+      physical_enabled: member.physicalEnabled,
+    })
+    .eq("id", id)
+    .select("*"); // <-- returnera uppdaterade rader
+
+  console.log("updateMemberInSupabase() response", { data, error });
+
+  if (error) throw error;
+
+  if (!data || data.length === 0) {
+    throw new Error(
+      "Ingen rad uppdaterades (RLS/policy blockerar eller fel id)."
+    );
+  }
+
+  return data[0];
+}
+
+async function insertMemberInSupabase(
+  member: Omit<Member, "id" | "progress" | "userId">
+): Promise<Member> {
+  const grading = member.gradingStatus;
+  const visibility = member.visibility;
+
+  const { data, error } = await supabase
+    .from("members")
+    .insert({
+      club_id: "112e386e-5e6b-4657-956e-f202f5558158",
+      first_name: member.firstName,
+      last_name: member.lastName,
+      age: member.age,
+      belt_rank: member.beltRank,
+      next_belt_rank: member.nextBeltRank,
+      attended_sessions: member.attendedSessions,
+      required_sessions: member.requiredSessions,
+      progress: 0,
+      avatar_url: member.avatarUrl,
+      member_comment: member.memberComment,
+      instructor_comment: member.instructorComment,
+      visibility_show_age: visibility.showAge,
+      visibility_show_belt_info: visibility.showBeltInfo,
+      visibility_show_grading_status: visibility.showGradingStatus,
+      visibility_show_member_comment: visibility.showMemberComment,
+      grading_kihon: grading.kihon,
+      grading_kata: grading.kata,
+      grading_kumite: grading.kumite,
+      grading_physical: grading.physical,
+      physical_enabled: member.physicalEnabled,
+    })
+    .select(
+      `
+      id,
+      user_id,
+      first_name,
+      last_name,
+      age,
+      belt_rank,
+      next_belt_rank,
+      attended_sessions,
+      required_sessions,
+      progress,
+      avatar_url,
+      member_comment,
+      instructor_comment,
+      visibility_show_age,
+      visibility_show_belt_info,
+      visibility_show_grading_status,
+      visibility_show_member_comment,
+      grading_kihon,
+      grading_kata,
+      grading_kumite,
+      grading_physical,
+      physical_enabled
+    `
+    )
+    .single();
+
+  if (error) {
+    console.error("Fel vid skapande av medlem:", error);
+    throw error;
+  }
+
+  const gradingStatus: GradingStatus = {
+    kihon: (data.grading_kihon as GradingStatusValue) ?? "not_ready",
+    kata: (data.grading_kata as GradingStatusValue) ?? "not_ready",
+    kumite: (data.grading_kumite as GradingStatusValue) ?? "not_ready",
+    physical: (data.grading_physical as GradingStatusValue) ?? "not_ready",
+  };
+
+  const vis: VisibilitySettings = {
+    showAge: data.visibility_show_age ?? true,
+    showBeltInfo: data.visibility_show_belt_info ?? true,
+    showGradingStatus: data.visibility_show_grading_status ?? true,
+    showMemberComment: data.visibility_show_member_comment ?? true,
+  };
+
+  const physicalEnabled: boolean = data.physical_enabled ?? false;
+
+  const computedProgress = calculateProgress(
+    gradingStatus,
+    data.attended_sessions ?? 0,
+    data.required_sessions ?? 0,
+    physicalEnabled
+  );
+
+  const newMember: Member = {
+    id: data.id,
+    userId: data.user_id ?? "",
+    firstName: data.first_name,
+    lastName: data.last_name,
+    age: data.age ?? 0,
+    beltRank: (data.belt_rank as BeltRank) ?? "9_kyu",
+    nextBeltRank: (data.next_belt_rank as BeltRank) ?? "8_kyu",
+    attendedSessions: data.attended_sessions ?? 0,
+    requiredSessions: data.required_sessions ?? 0,
+    progress: computedProgress,
+    avatarUrl: data.avatar_url ?? "/main.png",
+    memberComment: data.member_comment ?? "",
+    instructorComment: data.instructor_comment ?? "",
+    visibility: vis,
+    gradingStatus,
+    physicalEnabled,
+  };
+
+  return newMember;
 }
 
 //
-// --- Komponent ---
+// --- Komponent, Karatekas Page ---
 //
 
 export default function KaratekasPage() {
@@ -456,14 +522,21 @@ export default function KaratekasPage() {
     useState("");
   const [editingVisibility, setEditingVisibility] =
     useState<VisibilitySettings | null>(null);
+  const [editingPhysicalEnabled, setEditingPhysicalEnabled] =
+    useState<boolean>(false);
+  const [editingBeltRank, setEditingBeltRank] = useState<BeltRank>("9_kyu");
 
-  // Hämta medlemmar från Supabase (eller dummy om inga finns)
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newAge, setNewAge] = useState<number | "">("");
+  const [newBeltRank, setNewBeltRank] = useState<BeltRank>("9_kyu");
+  const [newNextBeltRank, setNewNextBeltRank] = useState<BeltRank>("8_kyu");
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
+
   useEffect(() => {
-    async function loadMembers() {
-      const fetched = await fetchMembersFromSupabase();
-      setMembers(fetched);
-    }
-    loadMembers();
+    fetchMembersFromSupabase().then(setMembers);
   }, []);
 
   const sortedMembers = [...members].sort(
@@ -476,6 +549,38 @@ export default function KaratekasPage() {
       { key: "admin", label: "Admin" },
       { key: "superadmin", label: "SuperAdmin" },
     ];
+
+  async function approveGrading(member: Member) {
+    const newCurrent = member.nextBeltRank;
+    const newNext = getNextBeltRank(newCurrent);
+    const newRequired = getRequiredSessionsForNextBelt(newCurrent, newNext);
+
+    const newGrading: GradingStatus = {
+      kihon: "not_ready",
+      kata: "not_ready",
+      kumite: "not_ready",
+      physical: "not_ready",
+    };
+
+    const updated: Member = {
+      ...member,
+      beltRank: newCurrent,
+      nextBeltRank: newNext,
+      attendedSessions: 0,
+      requiredSessions: newRequired,
+      gradingStatus: newGrading,
+      progress: calculateProgress(
+        newGrading,
+        0,
+        newRequired,
+        member.physicalEnabled
+      ),
+    };
+
+    await updateMemberInSupabase(updated);
+    setMembers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    setSelectedMember(updated);
+  }
 
   return (
     <main className="min-h-screen bg-black/90 text-white flex flex-col">
@@ -500,6 +605,21 @@ export default function KaratekasPage() {
         ))}
       </div>
 
+      {/* Toast-notis i mitten */}
+{toast && toastVisible && (
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+    <div
+      className={`rounded-xl border px-5 py-3 text-sm font-semibold shadow-2xl backdrop-blur ${
+        toast.type === "success"
+          ? "border-emerald-400/30 bg-emerald-900/80 text-emerald-100"
+          : "border-red-400/30 bg-red-900/80 text-red-100"
+      }`}
+    >
+      {toast.text}
+    </div>
+  </div>
+)}
+
       {/* Topprad */}
       <header className="flex items-center justify-between px-4 pt-2 pb-2">
         <button
@@ -515,7 +635,12 @@ export default function KaratekasPage() {
             type="button"
             className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
             onClick={() => {
-              alert("Här kommer funktionen för att lägga till nya medlemmar.");
+              setNewFirstName("");
+              setNewLastName("");
+              setNewAge("");
+              setNewBeltRank("9_kyu");
+              setNewNextBeltRank("8_kyu");
+              setIsAddOpen(true);
             }}
           >
             + Lägg till
@@ -523,14 +648,21 @@ export default function KaratekasPage() {
         )}
       </header>
 
-      {/* Innehåll */}
+      {/* Lista */}
       <section className="flex flex-col items-center px-4 pb-8 pt-4">
         <h1 className="mb-2 text-xl font-bold">Klubbmedlemmar</h1>
         <p className="mb-4 text-sm text-gray-300 text-center">
-          Data hämtas nu från Supabase (eller dummy-data om Supabase är tom).
+          Data hämtas från Supabase.
         </p>
 
         <div className="w-full max-w-md space-y-3">
+          {sortedMembers.length === 0 && (
+            <div className="rounded-lg border border-white/10 bg-black/40 p-4 text-center text-sm text-gray-300">
+              Inga medlemmar ännu. Klicka &quot;+ Lägg till&quot; för att skapa
+              en.
+            </div>
+          )}
+
           {sortedMembers.map((member) => {
             const fullName = `${member.firstName} ${member.lastName}`;
             const shortName = `${member.firstName} ${member.lastName.charAt(
@@ -544,7 +676,6 @@ export default function KaratekasPage() {
                 key={member.id}
                 className={`flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2 ${rowColor}`}
               >
-                {/* Mini-bild */}
                 <div className="flex-shrink-0">
                   <Image
                     src={member.avatarUrl}
@@ -555,10 +686,9 @@ export default function KaratekasPage() {
                   />
                 </div>
 
-                {/* Mitt-info */}
                 <div className="flex flex-1 flex-col text-xs">
                   <span className="font-semibold text-white">
-                    {displayName}
+                    #{member.userId || "------"} – {displayName}
                   </span>
                   <span className="text-gray-300">
                     Ålder: {member.age} år
@@ -570,14 +700,18 @@ export default function KaratekasPage() {
                     Nästa: {getBeltLabel(member.nextBeltRank)}
                   </span>
                   <span className="text-[10px] text-gray-400 mt-1">
-                    Närvaro: {member.attendedSessions}/{member.requiredSessions} pass
+                    Närvaro: {member.attendedSessions}/
+                    {member.requiredSessions} pass
                   </span>
+                  {member.physicalEnabled && (
+                    <span className="text-[10px] text-orange-300">
+                      Fysiska krav: aktiva
+                    </span>
+                  )}
                 </div>
 
-                {/* Högerdel */}
                 <div className="flex flex-col items-end gap-1">
                   <ProgressCircle progress={member.progress} />
-
                   <button
                     type="button"
                     className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
@@ -587,7 +721,6 @@ export default function KaratekasPage() {
                   >
                     Närvaro
                   </button>
-
                   <button
                     type="button"
                     className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
@@ -599,6 +732,8 @@ export default function KaratekasPage() {
                         member.instructorComment ?? ""
                       );
                       setEditingVisibility(member.visibility);
+                      setEditingPhysicalEnabled(member.physicalEnabled);
+                      setEditingBeltRank(member.beltRank);
                     }}
                   >
                     Profil
@@ -610,14 +745,14 @@ export default function KaratekasPage() {
         </div>
       </section>
 
-      {/* Profil-popup (oförändrad logik från tidigare) */}
-      {/* ... (samma popup som i förra filen, vi kan behålla den) ... */}
-      {selectedMember && (
+      {/* Profil-popup */}
+      {selectedMember && editingGradingStatus && editingVisibility && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
           <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl bg-neutral-950 p-4 shadow-xl border border-white/10">
             {/* Header */}
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-bold">
+                #{selectedMember.userId || "------"} –{" "}
                 {selectedMember.firstName}{" "}
                 {role === "member"
                   ? `${selectedMember.lastName.charAt(0)}.`
@@ -632,13 +767,15 @@ export default function KaratekasPage() {
                   setEditingMemberComment("");
                   setEditingInstructorComment("");
                   setEditingVisibility(null);
+                  setEditingPhysicalEnabled(false);
+                  setEditingBeltRank("9_kyu");
                 }}
               >
                 Stäng
               </button>
             </div>
 
-            {/* Bild + stor tårta */}
+            {/* Bild + tårta */}
             <div className="mb-4 flex items-center gap-4">
               <Image
                 src={selectedMember.avatarUrl}
@@ -659,10 +796,585 @@ export default function KaratekasPage() {
               </div>
             </div>
 
-            {/* Resterande popup-sektioner är samma som i förra filen */}
-            {/* ... du kan behålla samma graderings-, synlighets-, kommentar- och knapp-sektioner här ... */}
-            {/* För att inte göra det ännu mer texttungt, har jag inte duplicerat varje rad här,
-                men principen är: vi har bara ändrat HUR members fylls, inte hur popupen funkar. */}
+            {/* Grundinfo */}
+            <div className="mb-4 space-y-2 text-sm">
+              {editingVisibility.showAge && (
+                <p className="text-gray-200">
+                  Ålder:{" "}
+                  <span className="font-semibold">
+                    {selectedMember.age} år
+                  </span>
+                </p>
+              )}
+
+              {editingVisibility.showBeltInfo && (
+                <>
+                  {role === "member" ? (
+                    <>
+                      <p className="text-gray-200">
+                        Nuvarande:{" "}
+                        <span className="font-semibold">
+                          {getBeltLabel(selectedMember.beltRank)}
+                        </span>
+                      </p>
+                      <p className="text-gray-300">
+                        Nästa:{" "}
+                        <span className="font-semibold">
+                          {getBeltLabel(selectedMember.nextBeltRank)}
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="mb-1 block text-[11px] text-gray-300">
+                          Nuvarande grad
+                        </label>
+                        <select
+                          className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                          value={editingBeltRank}
+                          onChange={(e) => {
+                            const newCurrent = e.target.value as BeltRank;
+                            const newNext = getNextBeltRank(newCurrent);
+                            const newRequired =
+                              getRequiredSessionsForNextBelt(
+                                newCurrent,
+                                newNext
+                              );
+
+                            setEditingBeltRank(newCurrent);
+
+                            setSelectedMember((prev) => {
+                              if (!prev || !editingGradingStatus) return prev;
+
+                              const updated = {
+                                ...prev,
+                                beltRank: newCurrent,
+                                nextBeltRank: newNext,
+                                requiredSessions: newRequired,
+                              };
+
+                              const newProgress = calculateProgress(
+                                editingGradingStatus,
+                                updated.attendedSessions,
+                                updated.requiredSessions,
+                                editingPhysicalEnabled
+                              );
+
+                              return { ...updated, progress: newProgress };
+                            });
+                          }}
+                        >
+                          {beltOrder.map((b) => (
+                            <option key={b} value={b}>
+                              {getBeltLabel(b)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[11px] text-gray-300">
+                          Nästa grad (auto)
+                        </label>
+                        <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-xs text-gray-100">
+                          {getBeltLabel(getNextBeltRank(editingBeltRank))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[11px] text-gray-300">
+                          Kräver antal pass (auto)
+                        </label>
+                        <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-xs text-gray-100">
+                          {getRequiredSessionsForNextBelt(
+                            editingBeltRank,
+                            getNextBeltRank(editingBeltRank)
+                          )}{" "}
+                          pass
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Graderingsstatus + Fysik */}
+            <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
+              <p className="mb-2 text-xs font-semibold text-gray-200">
+                Graderingsstatus
+              </p>
+
+              {role === "member" && editingVisibility.showGradingStatus && (
+                <div className="space-y-2 text-xs">
+                  {(
+                    ["Kihon", "Kata", "Kumite", "Fysik"] as const
+                  ).map((label, idx) => {
+                    const key = [
+                      "kihon",
+                      "kata",
+                      "kumite",
+                      "physical",
+                    ][idx] as keyof GradingStatus;
+                    const { label: text, color } =
+                      getGradingLabelAndColor(
+                        selectedMember.gradingStatus[key]
+                      );
+                    return (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span className="text-gray-200">{label}</span>
+                        <span
+                          className={`rounded-full px-2 py-1 text-[11px] font-semibold ${color}`}
+                        >
+                          {text}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {role !== "member" && (
+                <>
+                  <div className="space-y-3 text-[11px] mt-2">
+                    {(
+                      [
+                        ["Kihon", "kihon"],
+                        ["Kata", "kata"],
+                        ["Kumite", "kumite"],
+                        ["Fysik", "physical"],
+                      ] as [string, keyof GradingStatus][]
+                    ).map(([label, key]) => {
+                      const currentValue = editingGradingStatus[key];
+                      const disabled =
+                        key === "physical" && !editingPhysicalEnabled;
+
+                      return (
+                        <div key={label} className="flex flex-col gap-1">
+                          <span className="text-gray-200 text-xs">
+                            {label}
+                          </span>
+                          <div className="flex gap-2">
+                            {(
+                              [
+                                ["Icke redo", "not_ready"],
+                                ["Delvis redo", "partial"],
+                                ["Redo", "ready"],
+                              ] as [string, GradingStatusValue][]
+                            ).map(([btnLabel, val]) => {
+                              const isActive = currentValue === val;
+                              let baseColor =
+                                "bg-gray-800 text-gray-200 border-gray-600";
+                              if (val === "not_ready")
+                                baseColor =
+                                  "bg-red-950/60 text-red-100 border-red-700";
+                              if (val === "partial")
+                                baseColor =
+                                  "bg-orange-950/60 text-orange-100 border-orange-700";
+                              if (val === "ready")
+                                baseColor =
+                                  "bg-emerald-950/60 text-emerald-100 border-emerald-700";
+
+                              return (
+                                <button
+                                  key={val}
+                                  type="button"
+                                  disabled={disabled}
+                                  className={`flex-1 rounded-full border px-2 py-1 text-[10px] font-semibold ${
+                                    disabled
+                                      ? "bg-gray-900 text-gray-600 border-gray-700 cursor-not-allowed"
+                                      : isActive
+                                      ? baseColor
+                                      : "bg-black text-gray-300 border-gray-600 hover:bg-gray-800"
+                                  }`}
+                                  onClick={() =>
+                                    setEditingGradingStatus((prev) => {
+                                      if (!prev || disabled) return prev;
+
+                                      const updatedStatus: GradingStatus = {
+                                        ...prev,
+                                        [key]: val,
+                                      };
+
+                                      const newProgress = calculateProgress(
+                                        updatedStatus,
+                                        selectedMember.attendedSessions,
+                                        selectedMember.requiredSessions,
+                                        editingPhysicalEnabled
+                                      );
+
+                                      setSelectedMember({
+                                        ...selectedMember,
+                                        gradingStatus: updatedStatus,
+                                        progress: newProgress,
+                                      });
+
+                                      return updatedStatus;
+                                    })
+                                  }
+                                >
+                                  {btnLabel}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Toggle Fysik */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3"
+                        checked={editingPhysicalEnabled}
+                        onChange={(e) => {
+                          const enabled = e.target.checked;
+                          setEditingPhysicalEnabled(enabled);
+                          setSelectedMember((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  progress: calculateProgress(
+                                    editingGradingStatus,
+                                    prev.attendedSessions,
+                                    prev.requiredSessions,
+                                    enabled
+                                  ),
+                                  physicalEnabled: enabled,
+                                }
+                              : prev
+                          );
+                        }}
+                      />
+                      <span className="text-[11px] text-gray-200">
+                        Räkna in fysik i progressionen
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-[10px] text-gray-500">
+                      (Ändringar sparas permanent först när du klickar på
+                      &quot;Spara ändringar&quot; längst ner.)
+                    </p>
+                  </div>
+
+                  {/* Godkänn gradering */}
+<div className="mt-3">
+  <button
+    type="button"
+    className="rounded-md bg-blue-700 px-3 py-1 text-[11px] font-semibold text-blue-50 hover:bg-blue-600"
+    onClick={async () => {
+      try {
+        await approveGrading(selectedMember);
+        // valfritt: toast här också, men du sa att du inte vill
+        alert("Graderingen är godkänd och bältesnivån har uppdaterats.");
+      } catch (err) {
+        console.error("Kunde inte godkänna gradering:", err);
+        alert("Det gick inte att godkänna graderingen. Försök igen.");
+      }
+    }}
+  >
+    Godkänn gradering (byt till {getBeltLabel(selectedMember.nextBeltRank)})
+  </button>
+</div>
+                </>
+              )}
+            </div>
+
+            {/* Kommentar till medlem */}
+            <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
+              <p className="mb-2 text-xs font-semibold text-gray-200">
+                Kommentar till medlem
+              </p>
+              {role === "member" ? (
+                selectedMember.visibility.showMemberComment ? (
+                  <p className="text-xs text-gray-200 whitespace-pre-line">
+                    {selectedMember.memberComment || "Ingen kommentar ännu."}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-gray-500">
+                    Denna information är inte tillgänglig.
+                  </p>
+                )
+              ) : (
+                <textarea
+                  className="h-20 w-full resize-none rounded-md border border-gray-700 bg-black/60 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                  value={editingMemberComment}
+                  onChange={(e) => setEditingMemberComment(e.target.value)}
+                />
+              )}
+            </div>
+
+            {/* Intern kommentar */}
+            {role !== "member" && (
+              <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
+                <p className="mb-2 text-xs font-semibold text-gray-200">
+                  Intern instruktörskommentar
+                </p>
+                <textarea
+                  className="h-20 w-full resize-none rounded-md border border-gray-700 bg-black/60 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                  value={editingInstructorComment}
+                  onChange={(e) =>
+                    setEditingInstructorComment(e.target.value)
+                  }
+                />
+                <p className="mt-1 text-[10px] text-gray-500">
+                  Denna kommentar visas inte för medlemmen.
+                </p>
+              </div>
+            )}
+
+            {/* Popup-knappar */}
+<div className="flex justify-end gap-2">
+  {role !== "member" && (
+    <button
+      type="button"
+      className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
+      onClick={async () => {
+        try {
+          if (!selectedMember || !editingGradingStatus || !editingVisibility) {
+            setToast({ type: "error", text: "Kan inte spara." });
+            setToastVisible(true);
+            setTimeout(() => setToastVisible(false), 1600);
+            return;
+          }
+
+          setToast({ type: "success", text: "Sparar..." });
+          setToastVisible(true);
+
+          const newCurrent = editingBeltRank;
+          const newNext = getNextBeltRank(newCurrent);
+          const newRequired = getRequiredSessionsForNextBelt(newCurrent, newNext);
+
+          const updated: Member = {
+            ...selectedMember,
+            beltRank: newCurrent,
+            nextBeltRank: newNext,
+            requiredSessions: newRequired,
+            gradingStatus: editingGradingStatus,
+            progress: calculateProgress(
+              editingGradingStatus,
+              selectedMember.attendedSessions,
+              newRequired,
+              editingPhysicalEnabled
+            ),
+            memberComment: editingMemberComment,
+            instructorComment: editingInstructorComment,
+            visibility: editingVisibility,
+            physicalEnabled: editingPhysicalEnabled,
+          };
+
+          await updateMemberInSupabase(updated);
+
+          setSelectedMember(updated);
+          setMembers((prev) =>
+            prev.map((m) => (m.id === updated.id ? updated : m))
+          );
+
+          setToast({ type: "success", text: "Sparat!" });
+          setToastVisible(true);
+          setTimeout(() => setToastVisible(false), 1200);
+        } catch (err) {
+          console.error("Spara ändringar: FEL", err);
+          setToast({ type: "error", text: "Kunde inte spara." });
+          setToastVisible(true);
+          setTimeout(() => setToastVisible(false), 2000);
+        }
+      }}
+    >
+      Spara ändringar
+    </button>
+  )}
+
+  <button
+    type="button"
+    className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
+    onClick={() => {
+      setSelectedMember(null);
+      setEditingGradingStatus(null);
+      setEditingMemberComment("");
+      setEditingInstructorComment("");
+      setEditingVisibility(null);
+      setEditingPhysicalEnabled(false);
+      setEditingBeltRank("9_kyu");
+      setToast(null);
+      setToastVisible(false);
+    }}
+  >
+    Stäng
+  </button>
+</div>
+          </div>
+        </div>
+      )}
+
+      {/* Lägg till medlem-popup */}
+      {isAddOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-xl bg-neutral-950 p-4 shadow-xl border border-white/10">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Lägg till medlem</h2>
+              <button
+                type="button"
+                className="text-xs text-gray-300 hover:text-white"
+                onClick={() => setIsAddOpen(false)}
+              >
+                Stäng
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="mb-1 block text-gray-300">Förnamn</label>
+                  <input
+                    type="text"
+                    className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                    value={newFirstName}
+                    onChange={(e) => setNewFirstName(e.target.value)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-gray-300">
+                    Efternamn
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                    value={newLastName}
+                    onChange={(e) => setNewLastName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-gray-300">Ålder</label>
+                <input
+                  type="number"
+                  className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                  value={newAge}
+                  onChange={(e) =>
+                    setNewAge(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
+                  min={0}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="mb-1 block text-gray-300">
+                    Nuvarande bälte
+                  </label>
+                  <select
+                    className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                    value={newBeltRank}
+                    onChange={(e) => {
+                      const val = e.target.value as BeltRank;
+                      setNewBeltRank(val);
+                      setNewNextBeltRank(getNextBeltRank(val));
+                    }}
+                  >
+                    {beltOrder.map((b) => (
+                      <option key={b} value={b}>
+                        {getBeltLabel(b)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-gray-300">
+                    Nästa bälte (auto)
+                  </label>
+                  <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-[11px] text-gray-100">
+                    {getBeltLabel(getNextBeltRank(newBeltRank))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-gray-300">
+                  Kräver antal pass (auto)
+                </label>
+                <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-[11px] text-gray-100">
+                  {getRequiredSessionsForNextBelt(
+                    newBeltRank,
+                    getNextBeltRank(newBeltRank)
+                  )}{" "}
+                  pass
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
+                onClick={() => setIsAddOpen(false)}
+              >
+                Avbryt
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
+                onClick={async () => {
+                  if (!newFirstName || !newLastName) {
+                    alert("Förnamn och efternamn måste fyllas i.");
+                    return;
+                  }
+                  const ageNumber = newAge === "" ? 0 : Number(newAge);
+                  const computedNext = getNextBeltRank(newBeltRank);
+                  const requiredNumber = getRequiredSessionsForNextBelt(
+                    newBeltRank,
+                    computedNext
+                  );
+
+                  const base: Omit<Member, "id" | "progress" | "userId"> = {
+                    firstName: newFirstName,
+                    lastName: newLastName,
+                    age: ageNumber,
+                    beltRank: newBeltRank,
+                    nextBeltRank: computedNext,
+                    attendedSessions: 0,
+                    requiredSessions: requiredNumber,
+                    avatarUrl: "/main.png",
+                    memberComment: "",
+                    instructorComment: "",
+                    visibility: {
+                      showAge: true,
+                      showBeltInfo: true,
+                      showGradingStatus: true,
+                      showMemberComment: true,
+                    },
+                    gradingStatus: {
+                      kihon: "not_ready",
+                      kata: "not_ready",
+                      kumite: "not_ready",
+                      physical: "not_ready",
+                    },
+                    physicalEnabled: false,
+                  };
+
+                  try {
+                    const created = await insertMemberInSupabase(base);
+                    setMembers((prev) => [...prev, created]);
+                    setIsAddOpen(false);
+                  } catch (err) {
+                    console.error("Kunde inte skapa medlem:", err);
+                    alert(
+                      "Det gick inte att skapa medlemmen. Kontrollera fälten eller försök igen."
+                    );
+                  }
+                }}
+              >
+                Spara medlem
+              </button>
+            </div>
           </div>
         </div>
       )}
