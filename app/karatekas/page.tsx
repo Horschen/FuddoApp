@@ -815,13 +815,16 @@ export default function KaratekasPage() {
   <ProgressCircle progress={member.progress} />
 
   <div className="flex items-center gap-1">
-    <button
-      type="button"
-      className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
-      onClick={() => alert("Här kommer snabb närvaroregistrering senare.")}
-    >
-      Närvaro
-    </button>
+    
+  {(role === "admin" || role === "superadmin") && (
+  <button
+    type="button"
+    className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
+    onClick={() => alert("Här kommer snabb närvaroregistrering senare.")}
+  >
+    Närvaro
+  </button>
+)}
 
     {(role === "admin" || role === "superadmin") && (
       <button
