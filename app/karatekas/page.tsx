@@ -605,6 +605,23 @@ async function insertMemberInSupabase(
   };
 }
 
+async function fetchShareTokenForMember(memberId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("member_share_links")
+    .select("token, revoked")
+    .eq("member_id", memberId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Fel vid hämtning av share-token:", error);
+    return null;
+  }
+
+  if (!data || data.revoked) return null;
+
+  return data.token as string;
+}
+
 /* =========================================================
    PAGE COMPONENT
 ========================================================= */
@@ -697,7 +714,7 @@ export default function KaratekasPage() {
   /* =========================================================
      ACTION HELPERS (so we can reuse blocks)
   ========================================================= */
-  function openProfile(member: Member) {
+  async function openProfile(member: Member) {
     setSelectedMember(member);
     setEditingGradingStatus(member.gradingStatus);
     setEditingMemberComment(member.memberComment ?? "");
@@ -707,6 +724,16 @@ export default function KaratekasPage() {
     setEditingBeltRank(member.beltRank);
     setEditingBirthYmd(member.birthYmd ?? "");
     setShareToken(null);
+
+    // Försök hämta befintlig aktiv delningslänk från databasen
+    try {
+      const existingToken = await fetchShareTokenForMember(member.id);
+      if (existingToken) {
+        setShareToken(existingToken);
+      }
+    } catch (err) {
+      console.error("Kunde inte hämta delningslänk:", err);
+    }
   }
 
   function closeProfile() {
