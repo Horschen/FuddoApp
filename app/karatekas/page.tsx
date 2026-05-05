@@ -1,14 +1,16 @@
 "use client";
 
+/* =========================================================
+   IMPORTS
+========================================================= */
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-//
-// --- Typer ---
-//
-
+/* =========================================================
+   TYPES
+========================================================= */
 type BeltRank =
   | "9_kyu"
   | "8_kyu"
@@ -55,7 +57,7 @@ type PhysicalRequirement = {
 
 type Member = {
   id: string;
-  userId: string; // 000001 etc
+  userId: string; // löpnummer som text, t.ex. 000001
   firstName: string;
   lastName: string;
 
@@ -86,10 +88,9 @@ type Member = {
   isPublic: boolean;
 };
 
-//
-// --- Konstanter / Hjälp ---
-//
-
+/* =========================================================
+   CONSTANTS
+========================================================= */
 const CLUB_ID = "112e386e-5e6b-4657-956e-f202f5558158";
 
 const beltOrder: BeltRank[] = [
@@ -114,6 +115,9 @@ const beltOrder: BeltRank[] = [
   "10_dan",
 ];
 
+/* =========================================================
+   UI HELPERS (labels/colors)
+========================================================= */
 function getBeltColor(belt: BeltRank): string {
   switch (belt) {
     case "9_kyu":
@@ -170,11 +174,16 @@ function getNextBeltRank(current: BeltRank): BeltRank {
   return beltOrder[idx + 1];
 }
 
-function getRequiredSessionsForNextBelt(current: BeltRank, next: BeltRank): number {
+function getRequiredSessionsForNextBelt(
+  current: BeltRank,
+  next: BeltRank
+): number {
   const idx = beltOrder.indexOf(current);
 
-  if (idx >= beltOrder.indexOf("9_kyu") && idx <= beltOrder.indexOf("3_kyu")) return 30;
-  if (idx >= beltOrder.indexOf("3_kyu") && idx <= beltOrder.indexOf("1_kyu")) return 60;
+  if (idx >= beltOrder.indexOf("9_kyu") && idx <= beltOrder.indexOf("3_kyu"))
+    return 30;
+  if (idx >= beltOrder.indexOf("3_kyu") && idx <= beltOrder.indexOf("1_kyu"))
+    return 60;
 
   if (current === "1_kyu" && next === "1_dan") return 120;
   if (current === "1_dan" && next === "2_dan") return 240;
@@ -199,18 +208,23 @@ function getGradingLabelAndColor(value: GradingStatusValue) {
   }
 }
 
+/* =========================================================
+   PROGRESS + AGE HELPERS
+========================================================= */
 function calculateProgress(
   status: GradingStatus,
   attended: number,
   required: number,
   physicalEnabled: boolean
 ): number {
-  const valueOf = (v: GradingStatusValue) => (v === "ready" ? 1 : v === "partial" ? 0.5 : 0);
+  const valueOf = (v: GradingStatusValue) =>
+    v === "ready" ? 1 : v === "partial" ? 0.5 : 0;
 
   const parts = [status.kihon, status.kata, status.kumite];
   if (physicalEnabled) parts.push(status.physical);
 
-  const techScore = parts.reduce((sum, v) => sum + valueOf(v), 0) / parts.length;
+  const techScore =
+    parts.reduce((sum, v) => sum + valueOf(v), 0) / parts.length;
   const attScore = required > 0 ? Math.min(attended / required, 1) : 0;
 
   return 0.5 * techScore + 0.5 * attScore;
@@ -222,15 +236,18 @@ function parseBirthYmdToDate(ymd: string): Date | null {
   const yy = Number(ymd.slice(0, 2));
   const mm = Number(ymd.slice(2, 4));
   const dd = Number(ymd.slice(4, 6));
-
   if (mm < 1 || mm > 12) return null;
   if (dd < 1 || dd > 31) return null;
 
   const fullYear = yy <= 29 ? 2000 + yy : 1900 + yy;
 
   const d = new Date(fullYear, mm - 1, dd);
-
-  if (d.getFullYear() !== fullYear || d.getMonth() !== mm - 1 || d.getDate() !== dd) return null;
+  if (
+    d.getFullYear() !== fullYear ||
+    d.getMonth() !== mm - 1 ||
+    d.getDate() !== dd
+  )
+    return null;
 
   return d;
 }
@@ -257,6 +274,9 @@ function formatBirthIso(ymd: string): string | null {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/* =========================================================
+   PROGRESS CIRCLES
+========================================================= */
 function ProgressCircle({ progress }: { progress: number }) {
   const clamped = Math.max(0, Math.min(1, progress));
   const percentage = Math.round(clamped * 100);
@@ -321,10 +341,9 @@ function LargeProgressCircle({ progress }: { progress: number }) {
   );
 }
 
-//
-// --- Supabase ---
-//
-
+/* =========================================================
+   SUPABASE: FETCH/UPDATE/INSERT
+========================================================= */
 async function fetchMembersFromSupabase(): Promise<Member[]> {
   const { data, error } = await supabase
     .from("members")
@@ -361,7 +380,6 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
     console.error("Fel vid hämtning av medlemmar:", error);
     return [];
   }
-
   if (!data || data.length === 0) return [];
 
   return data.map((row: any) => {
@@ -415,7 +433,9 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
   });
 }
 
-async function fetchPhysicalRequirementsFromSupabase(): Promise<Record<string, PhysicalRequirement>> {
+async function fetchPhysicalRequirementsFromSupabase(): Promise<
+  Record<string, PhysicalRequirement>
+> {
   const { data, error } = await supabase
     .from("physical_requirements")
     .select("belt_rank, pushups, situps, squats")
@@ -440,8 +460,6 @@ async function fetchPhysicalRequirementsFromSupabase(): Promise<Record<string, P
 }
 
 async function updateMemberInSupabase(member: Member) {
-  const { id } = member;
-
   const { data, error } = await supabase
     .from("members")
     .update({
@@ -468,16 +486,12 @@ async function updateMemberInSupabase(member: Member) {
       physical_enabled: member.physicalEnabled,
       is_public: member.isPublic,
     })
-    .eq("id", id)
+    .eq("id", member.id)
     .select("*");
 
-  if (error) {
-    console.error("Fel vid uppdatering av medlem:", error);
-    throw error;
-  }
-  if (!data || data.length === 0) {
-    throw new Error("Ingen rad uppdaterades (RLS/policy blockerar eller fel id).");
-  }
+  if (error) throw error;
+  if (!data || data.length === 0)
+    throw new Error("Ingen rad uppdaterades (RLS/policy eller fel id).");
   return data[0];
 }
 
@@ -544,10 +558,7 @@ async function insertMemberInSupabase(
     )
     .single();
 
-  if (error) {
-    console.error("Fel vid skapande av medlem:", error);
-    throw error;
-  }
+  if (error) throw error;
 
   const gradingStatus: GradingStatus = {
     kihon: (data.grading_kihon as GradingStatusValue) ?? "not_ready",
@@ -594,33 +605,45 @@ async function insertMemberInSupabase(
   };
 }
 
-//
-// --- Page ---
-//
-
+/* =========================================================
+   PAGE COMPONENT
+========================================================= */
 export default function KaratekasPage() {
   const router = useRouter();
 
+  /* ---------- ROLE SWITCH (temp) ---------- */
   const [role, setRole] = useState<"member" | "admin" | "superadmin">("admin");
 
+  /* ---------- DATA ---------- */
   const [members, setMembers] = useState<Member[]>([]);
-  const [physicalReqMap, setPhysicalReqMap] = useState<Record<string, PhysicalRequirement>>({});
+  const [physicalReqMap, setPhysicalReqMap] = useState<
+    Record<string, PhysicalRequirement>
+  >({});
 
+  /* ---------- PROFILE POPUP STATE ---------- */
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-
-  const [editingGradingStatus, setEditingGradingStatus] = useState<GradingStatus | null>(null);
+  const [editingGradingStatus, setEditingGradingStatus] =
+    useState<GradingStatus | null>(null);
   const [editingMemberComment, setEditingMemberComment] = useState("");
   const [editingInstructorComment, setEditingInstructorComment] = useState("");
-  const [editingVisibility, setEditingVisibility] = useState<VisibilitySettings | null>(null);
-  const [editingPhysicalEnabled, setEditingPhysicalEnabled] = useState<boolean>(false);
-  const [editingBeltRank, setEditingBeltRank] = useState<BeltRank>("9_kyu");
+  const [editingVisibility, setEditingVisibility] =
+    useState<VisibilitySettings | null>(null);
+  const [editingPhysicalEnabled, setEditingPhysicalEnabled] = useState(false);
+  const [editingBeltRank, setEditingBeltRank] =
+    useState<BeltRank>("9_kyu");
   const [editingBirthYmd, setEditingBirthYmd] = useState("");
 
-  // Toast i mitten
-  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  /* ---------- SHARE STATE (for admin) ---------- */
+  const [shareToken, setShareToken] = useState<string | null>(null);
+
+  /* ---------- TOAST ---------- */
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
 
-  // Add popup
+  /* ---------- ADD POPUP ---------- */
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newFirstName, setNewFirstName] = useState("");
   const [newLastName, setNewLastName] = useState("");
@@ -628,6 +651,7 @@ export default function KaratekasPage() {
   const [newIsPublic, setNewIsPublic] = useState(true);
   const [newBeltRank, setNewBeltRank] = useState<BeltRank>("9_kyu");
 
+  /* ---------- LOAD DATA ---------- */
   useEffect(() => {
     (async () => {
       const [m, req] = await Promise.all([
@@ -639,7 +663,7 @@ export default function KaratekasPage() {
     })();
   }, []);
 
-  // Lås bakgrund-scroll när profil-popup är öppen (mobil-fix)
+  /* ---------- BODY SCROLL LOCK FOR PROFILE POPUP ---------- */
   useEffect(() => {
     if (selectedMember) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
@@ -648,8 +672,11 @@ export default function KaratekasPage() {
     };
   }, [selectedMember]);
 
+  /* ---------- DERIVED LIST ---------- */
   const sortedMembers = useMemo(() => {
-    return [...members].sort((a, b) => beltOrder.indexOf(a.beltRank) - beltOrder.indexOf(b.beltRank));
+    return [...members].sort(
+      (a, b) => beltOrder.indexOf(a.beltRank) - beltOrder.indexOf(b.beltRank)
+    );
   }, [members]);
 
   const visibleMembers = useMemo(() => {
@@ -658,11 +685,41 @@ export default function KaratekasPage() {
       : sortedMembers.filter((m) => m.isPublic);
   }, [role, sortedMembers]);
 
-  const roleButtons: { key: "member" | "admin" | "superadmin"; label: string }[] = [
+  const roleButtons: {
+    key: "member" | "admin" | "superadmin";
+    label: string;
+  }[] = [
     { key: "member", label: "Member" },
     { key: "admin", label: "Admin" },
     { key: "superadmin", label: "SuperAdmin" },
   ];
+
+  /* =========================================================
+     ACTION HELPERS (so we can reuse blocks)
+  ========================================================= */
+  function openProfile(member: Member) {
+    setSelectedMember(member);
+    setEditingGradingStatus(member.gradingStatus);
+    setEditingMemberComment(member.memberComment ?? "");
+    setEditingInstructorComment(member.instructorComment ?? "");
+    setEditingVisibility(member.visibility);
+    setEditingPhysicalEnabled(member.physicalEnabled);
+    setEditingBeltRank(member.beltRank);
+    setEditingBirthYmd(member.birthYmd ?? "");
+    setShareToken(null);
+  }
+
+  function closeProfile() {
+    setSelectedMember(null);
+    setEditingGradingStatus(null);
+    setEditingMemberComment("");
+    setEditingInstructorComment("");
+    setEditingVisibility(null);
+    setEditingPhysicalEnabled(false);
+    setEditingBeltRank("9_kyu");
+    setEditingBirthYmd("");
+    setShareToken(null);
+  }
 
   async function approveGrading(member: Member) {
     const newCurrent = member.nextBeltRank;
@@ -683,7 +740,12 @@ export default function KaratekasPage() {
       attendedSessions: 0,
       requiredSessions: newRequired,
       gradingStatus: newGrading,
-      progress: calculateProgress(newGrading, 0, newRequired, member.physicalEnabled),
+      progress: calculateProgress(
+        newGrading,
+        0,
+        newRequired,
+        member.physicalEnabled
+      ),
     };
 
     await updateMemberInSupabase(updated);
@@ -691,9 +753,14 @@ export default function KaratekasPage() {
     setSelectedMember(updated);
   }
 
+  /* =========================================================
+     RENDER
+  ========================================================= */
   return (
     <main className="min-h-screen bg-black/90 text-white flex flex-col">
-      {/* Toast-notis i mitten */}
+      {/* =====================================================
+          TOAST (center)
+      ====================================================== */}
       {toast && toastVisible && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
           <div
@@ -708,9 +775,13 @@ export default function KaratekasPage() {
         </div>
       )}
 
-      {/* Roll-växlare */}
+      {/* =====================================================
+          ROLE SWITCH (temp)
+      ====================================================== */}
       <div className="flex items-center justify-center gap-2 px-4 pt-3 pb-1 text-[11px] text-gray-300">
-        <span className="mr-1 text-[10px] uppercase tracking-wide text-gray-500">Vy:</span>
+        <span className="mr-1 text-[10px] uppercase tracking-wide text-gray-500">
+          Vy:
+        </span>
         {roleButtons.map((r) => (
           <button
             key={r.key}
@@ -727,7 +798,9 @@ export default function KaratekasPage() {
         ))}
       </div>
 
-      {/* Topprad */}
+      {/* =====================================================
+          HEADER
+      ====================================================== */}
       <header className="flex items-center justify-between px-4 pt-2 pb-2">
         <button
           type="button"
@@ -755,10 +828,14 @@ export default function KaratekasPage() {
         )}
       </header>
 
-      {/* Lista */}
+      {/* =====================================================
+          MEMBER LIST
+      ====================================================== */}
       <section className="flex flex-col items-center px-4 pb-8 pt-4">
         <h1 className="mb-2 text-xl font-bold">Klubbmedlemmar</h1>
-        <p className="mb-4 text-sm text-gray-300 text-center">Data hämtas från Supabase.</p>
+        <p className="mb-4 text-sm text-gray-300 text-center">
+          Data hämtas från Supabase.
+        </p>
 
         <div className="w-full max-w-md space-y-3">
           {visibleMembers.length === 0 && (
@@ -769,7 +846,9 @@ export default function KaratekasPage() {
 
           {visibleMembers.map((member) => {
             const fullName = `${member.firstName} ${member.lastName}`;
-            const shortName = `${member.firstName} ${member.lastName.charAt(0)}.`;
+            const shortName = `${member.firstName} ${member.lastName.charAt(
+              0
+            )}.`;
             const displayName = role === "member" ? shortName : fullName;
             const rowColor = getBeltColor(member.beltRank);
             const req = physicalReqMap[member.nextBeltRank];
@@ -791,20 +870,27 @@ export default function KaratekasPage() {
 
                 <div className="flex flex-1 flex-col text-xs">
                   <span className="font-semibold text-white">{displayName}</span>
-
-                  <span className="text-gray-300">Ålder: {getDisplayAge(member)} år</span>
-
-                  <span className="text-gray-300">Nuvarande: {getBeltLabel(member.beltRank)}</span>
-                  <span className="text-gray-400">Nästa: {getBeltLabel(member.nextBeltRank)}</span>
+                  <span className="text-gray-300">
+                    Ålder: {getDisplayAge(member)} år
+                  </span>
+                  <span className="text-gray-300">
+                    Nuvarande: {getBeltLabel(member.beltRank)}
+                  </span>
+                  <span className="text-gray-400">
+                    Nästa: {getBeltLabel(member.nextBeltRank)}
+                  </span>
 
                   {member.physicalEnabled && (
                     <div className="mt-1">
                       {req ? (
                         <span className="block text-[10px] text-gray-200">
                           Önskvärd fyskrav till nästa bälte:{" "}
-                          <span className="font-semibold">{req.pushups}</span> armhävningar,{" "}
-                          <span className="font-semibold">{req.situps}</span> situps,{" "}
-                          <span className="font-semibold">{req.squats}</span> squats
+                          <span className="font-semibold">{req.pushups}</span>{" "}
+                          armhävningar,{" "}
+                          <span className="font-semibold">{req.situps}</span>{" "}
+                          situps,{" "}
+                          <span className="font-semibold">{req.squats}</span>{" "}
+                          squats
                         </span>
                       ) : (
                         <span className="block text-[10px] text-gray-400">
@@ -823,7 +909,9 @@ export default function KaratekasPage() {
                       <button
                         type="button"
                         className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
-                        onClick={() => alert("Här kommer snabb närvaroregistrering senare.")}
+                        onClick={() =>
+                          alert("Här kommer snabb närvaroregistrering senare.")
+                        }
                       >
                         Närvaro
                       </button>
@@ -837,17 +925,7 @@ export default function KaratekasPage() {
                             ? "bg-emerald-800 text-emerald-100"
                             : "bg-red-800 text-red-100"
                         }`}
-                        onClick={() => {
-                          // öppna profilen så man kan ändra synlighet där
-                          setSelectedMember(member);
-                          setEditingGradingStatus(member.gradingStatus);
-                          setEditingMemberComment(member.memberComment ?? "");
-                          setEditingInstructorComment(member.instructorComment ?? "");
-                          setEditingVisibility(member.visibility);
-                          setEditingPhysicalEnabled(member.physicalEnabled);
-                          setEditingBeltRank(member.beltRank);
-                          setEditingBirthYmd(member.birthYmd ?? "");
-                        }}
+                        onClick={() => openProfile(member)}
                         title="Ändra synlighet inne i profilen"
                       >
                         {member.isPublic ? "Publik" : "Ej publik"}
@@ -858,16 +936,7 @@ export default function KaratekasPage() {
                   <button
                     type="button"
                     className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
-                    onClick={() => {
-                      setSelectedMember(member);
-                      setEditingGradingStatus(member.gradingStatus);
-                      setEditingMemberComment(member.memberComment ?? "");
-                      setEditingInstructorComment(member.instructorComment ?? "");
-                      setEditingVisibility(member.visibility);
-                      setEditingPhysicalEnabled(member.physicalEnabled);
-                      setEditingBeltRank(member.beltRank);
-                      setEditingBirthYmd(member.birthYmd ?? "");
-                    }}
+                    onClick={() => openProfile(member)}
                   >
                     Profil
                   </button>
@@ -878,15 +947,19 @@ export default function KaratekasPage() {
         </div>
       </section>
 
-      {/* Profil-popup */}
+      {/* =====================================================
+          PROFILE POPUP (sticky header/footer + scroll middle)
+      ====================================================== */}
       {selectedMember && editingGradingStatus && editingVisibility && (
         <div className="fixed inset-0 z-50 bg-black/70 px-4 py-6">
           <div className="mx-auto w-full max-w-md h-[90dvh] rounded-xl bg-neutral-950 shadow-xl border border-white/10 overflow-hidden grid grid-rows-[auto,1fr,auto]">
-            {/* Sticky Header */}
+            {/* HEADER */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-neutral-950">
               <h2 className="text-lg font-bold">
                 {role !== "member" && (
-                  <span className="text-gray-300">#{selectedMember.userId || "------"} </span>
+                  <span className="text-gray-300">
+                    #{selectedMember.userId || "------"}{" "}
+                  </span>
                 )}
                 <span>
                   {selectedMember.firstName}{" "}
@@ -899,24 +972,15 @@ export default function KaratekasPage() {
               <button
                 type="button"
                 className="text-xs text-gray-300 hover:text-white"
-                onClick={() => {
-                  setSelectedMember(null);
-                  setEditingGradingStatus(null);
-                  setEditingMemberComment("");
-                  setEditingInstructorComment("");
-                  setEditingVisibility(null);
-                  setEditingPhysicalEnabled(false);
-                  setEditingBeltRank("9_kyu");
-                  setEditingBirthYmd("");
-                }}
+                onClick={closeProfile}
               >
                 Stäng
               </button>
             </div>
 
-            {/* Scroll-yta */}
+            {/* SCROLL CONTENT */}
             <div className="overflow-y-auto px-4 py-3">
-              {/* Bild + tårta */}
+              {/* Bild + progress */}
               <div className="mb-4 flex items-center gap-4">
                 <Image
                   src={selectedMember.avatarUrl}
@@ -927,17 +991,22 @@ export default function KaratekasPage() {
                 />
                 <div className="flex flex-col items-center gap-1">
                   <LargeProgressCircle progress={selectedMember.progress} />
-                  <span className="text-[11px] text-gray-300">Progress mot nästa gradering</span>
+                  <span className="text-[11px] text-gray-300">
+                    Progress mot nästa gradering
+                  </span>
                   <span className="text-[10px] text-gray-400">
-                    Närvaro: {selectedMember.attendedSessions}/{selectedMember.requiredSessions} pass
+                    Närvaro: {selectedMember.attendedSessions}/
+                    {selectedMember.requiredSessions} pass
                   </span>
                 </div>
               </div>
 
-              {/* Publik / Inte publik */}
+              {/* Synlighet */}
               {(role === "admin" || role === "superadmin") && (
                 <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-gray-200">Synlighet i medlemslistan</p>
+                  <p className="mb-2 text-xs font-semibold text-gray-200">
+                    Synlighet i medlemslistan
+                  </p>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs text-gray-300">
                       Status:{" "}
@@ -959,23 +1028,29 @@ export default function KaratekasPage() {
                             ...selectedMember,
                             isPublic: !selectedMember.isPublic,
                           };
-
                           await updateMemberInSupabase(updated);
 
                           setSelectedMember(updated);
                           setMembers((prev) =>
-                            prev.map((m) => (m.id === updated.id ? updated : m))
+                            prev.map((m) =>
+                              m.id === updated.id ? updated : m
+                            )
                           );
 
                           setToast({
                             type: "success",
-                            text: updated.isPublic ? "Satt till Publik" : "Satt till Inte publik",
+                            text: updated.isPublic
+                              ? "Satt till Publik"
+                              : "Satt till Inte publik",
                           });
                           setToastVisible(true);
                           setTimeout(() => setToastVisible(false), 1400);
                         } catch (err) {
-                          console.error("Kunde inte ändra synlighet:", err);
-                          setToast({ type: "error", text: "Kunde inte ändra synlighet." });
+                          console.error(err);
+                          setToast({
+                            type: "error",
+                            text: "Kunde inte ändra synlighet.",
+                          });
                           setToastVisible(true);
                           setTimeout(() => setToastVisible(false), 2000);
                         }
@@ -984,10 +1059,203 @@ export default function KaratekasPage() {
                       {selectedMember.isPublic ? "Gör Inte publik" : "Gör Publik"}
                     </button>
                   </div>
+                </div>
+              )}
 
-                  <p className="mt-2 text-[10px] text-gray-500">
-                    Inte publik innebär att medlemmen inte syns för andra i medlemslistan.
+              {/* Dela profil (komplett, inkl "Delar profil för" + "Öppna länk") */}
+              {(role === "admin" || role === "superadmin") && (
+                <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-gray-200">
+                    Dela profil
                   </p>
+
+                  <p className="mb-3 text-[11px] text-gray-400">
+                    Delar profil för:{" "}
+                    <span className="font-semibold text-gray-200">
+                      {selectedMember.firstName} {selectedMember.lastName}
+                    </span>{" "}
+                    <span className="text-gray-500">
+                      (id: {selectedMember.id})
+                    </span>
+                  </p>
+
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="flex-1 rounded-md bg-blue-700 px-3 py-2 text-xs font-semibold text-blue-50 hover:bg-blue-600"
+                        onClick={async () => {
+                          try {
+                            setToast({ type: "success", text: "Skapar länk..." });
+                            setToastVisible(true);
+
+                            const res = await fetch("/api/share/create", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ memberId: selectedMember.id }),
+                            });
+                            const json = await res.json();
+                            if (!res.ok) throw new Error(json?.error ?? "Kunde inte skapa länk");
+
+                            setShareToken(json.token);
+
+                            setToast({ type: "success", text: "Länk skapad!" });
+                            setToastVisible(true);
+                            setTimeout(() => setToastVisible(false), 1200);
+                          } catch (err) {
+                            console.error(err);
+                            setToast({ type: "error", text: "Kunde inte skapa länk." });
+                            setToastVisible(true);
+                            setTimeout(() => setToastVisible(false), 2000);
+                          }
+                        }}
+                      >
+                        Skapa ny länk
+                      </button>
+
+                      <button
+                        type="button"
+                        className="flex-1 rounded-md bg-red-700 px-3 py-2 text-xs font-semibold text-red-50 hover:bg-red-600"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/share/revoke", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ memberId: selectedMember.id }),
+                            });
+                            const json = await res.json();
+                            if (!res.ok) throw new Error(json?.error ?? "Kunde inte återkalla");
+
+                            setShareToken(null);
+
+                            setToast({ type: "success", text: "Länk återkallad." });
+                            setToastVisible(true);
+                            setTimeout(() => setToastVisible(false), 1200);
+                          } catch (err) {
+                            console.error(err);
+                            setToast({ type: "error", text: "Kunde inte återkalla." });
+                            setToastVisible(true);
+                            setTimeout(() => setToastVisible(false), 2000);
+                          }
+                        }}
+                      >
+                        Återkalla
+                      </button>
+                    </div>
+
+                    <div className="rounded-md border border-gray-700 bg-black/50 px-2 py-2 text-[11px] text-gray-200 break-all">
+                      {shareToken
+                        ? `${window.location.origin}/share/${shareToken}`
+                        : "Ingen aktiv delningslänk ännu."}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md bg-gray-800 px-3 py-2 text-[11px] font-semibold hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500"
+                        disabled={!shareToken}
+                        onClick={async () => {
+                          if (!shareToken) return;
+                          const url = `${window.location.origin}/share/${shareToken}`;
+                          await navigator.clipboard.writeText(url);
+                          setToast({ type: "success", text: "Länk kopierad!" });
+                          setToastVisible(true);
+                          setTimeout(() => setToastVisible(false), 1200);
+                        }}
+                      >
+                        Kopiera länk
+                      </button>
+
+                      <button
+                        type="button"
+                        className="rounded-md bg-gray-800 px-3 py-2 text-[11px] font-semibold hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500"
+                        disabled={!shareToken}
+                        onClick={() => {
+                          if (!shareToken) return;
+                          const url = `${window.location.origin}/share/${shareToken}`;
+                          window.open(url, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        Öppna länk
+                      </button>
+
+                      <a
+                        className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
+                          shareToken
+                            ? "bg-gray-800 hover:bg-gray-700"
+                            : "bg-gray-900 text-gray-500 pointer-events-none"
+                        }`}
+                        href={
+                          shareToken
+                            ? `mailto:?subject=Karateprofil&body=${encodeURIComponent(
+                                `Här är profilen:\n${window.location.origin}/share/${shareToken}`
+                              )}`
+                            : "#"
+                        }
+                      >
+                        E‑post
+                      </a>
+
+                      <a
+                        className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
+                          shareToken
+                            ? "bg-gray-800 hover:bg-gray-700"
+                            : "bg-gray-900 text-gray-500 pointer-events-none"
+                        }`}
+                        href={
+                          shareToken
+                            ? `sms:&body=${encodeURIComponent(
+                                `Här är profilen: ${window.location.origin}/share/${shareToken}`
+                              )}`
+                            : "#"
+                        }
+                      >
+                        SMS
+                      </a>
+
+                      <a
+                        className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
+                          shareToken
+                            ? "bg-gray-800 hover:bg-gray-700"
+                            : "bg-gray-900 text-gray-500 pointer-events-none"
+                        }`}
+                        href={
+                          shareToken
+                            ? `https://wa.me/?text=${encodeURIComponent(
+                                `Här är profilen: ${window.location.origin}/share/${shareToken}`
+                              )}`
+                            : "#"
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        WhatsApp
+                      </a>
+
+                      <a
+                        className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
+                          shareToken
+                            ? "bg-gray-800 hover:bg-gray-700"
+                            : "bg-gray-900 text-gray-500 pointer-events-none"
+                        }`}
+                        href={
+                          shareToken
+                            ? `https://www.messenger.com/t/?link=${encodeURIComponent(
+                                `${window.location.origin}/share/${shareToken}`
+                              )}`
+                            : "#"
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Messenger
+                      </a>
+                    </div>
+
+                    <p className="text-[10px] text-gray-500">
+                      Skapa ny länk om du vill att den gamla ska sluta fungera.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -996,7 +1264,10 @@ export default function KaratekasPage() {
                 {editingVisibility.showAge && (
                   <>
                     <p className="text-gray-200">
-                      Ålder: <span className="font-semibold">{getDisplayAge(selectedMember)} år</span>
+                      Ålder:{" "}
+                      <span className="font-semibold">
+                        {getDisplayAge(selectedMember)} år
+                      </span>
                     </p>
 
                     {(role === "admin" || role === "superadmin") && (
@@ -1004,7 +1275,6 @@ export default function KaratekasPage() {
                         <label className="mb-1 block text-[11px] text-gray-300">
                           Födelsedata (YYMMDD)
                         </label>
-
                         <input
                           type="text"
                           inputMode="numeric"
@@ -1012,13 +1282,16 @@ export default function KaratekasPage() {
                           className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
                           value={editingBirthYmd}
                           onChange={(e) => {
-                            const onlyDigits = e.target.value.replace(/\D/g, "").slice(0, 6);
+                            const onlyDigits = e.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 6);
                             setEditingBirthYmd(onlyDigits);
-                            setSelectedMember((prev) => (prev ? { ...prev, birthYmd: onlyDigits } : prev));
+                            setSelectedMember((prev) =>
+                              prev ? { ...prev, birthYmd: onlyDigits } : prev
+                            );
                           }}
                           placeholder="t.ex. 770612"
                         />
-
                         <p className="mt-1 text-[10px] text-gray-500">
                           {editingBirthYmd && formatBirthIso(editingBirthYmd)
                             ? `Tolkning: ${formatBirthIso(editingBirthYmd)}`
@@ -1035,24 +1308,34 @@ export default function KaratekasPage() {
                       <>
                         <p className="text-gray-200">
                           Nuvarande:{" "}
-                          <span className="font-semibold">{getBeltLabel(selectedMember.beltRank)}</span>
+                          <span className="font-semibold">
+                            {getBeltLabel(selectedMember.beltRank)}
+                          </span>
                         </p>
                         <p className="text-gray-300">
                           Nästa:{" "}
-                          <span className="font-semibold">{getBeltLabel(selectedMember.nextBeltRank)}</span>
+                          <span className="font-semibold">
+                            {getBeltLabel(selectedMember.nextBeltRank)}
+                          </span>
                         </p>
                       </>
                     ) : (
                       <div className="space-y-2">
                         <div>
-                          <label className="mb-1 block text-[11px] text-gray-300">Nuvarande grad</label>
+                          <label className="mb-1 block text-[11px] text-gray-300">
+                            Nuvarande grad
+                          </label>
                           <select
                             className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
                             value={editingBeltRank}
                             onChange={(e) => {
                               const newCurrent = e.target.value as BeltRank;
                               const newNext = getNextBeltRank(newCurrent);
-                              const newRequired = getRequiredSessionsForNextBelt(newCurrent, newNext);
+                              const newRequired =
+                                getRequiredSessionsForNextBelt(
+                                  newCurrent,
+                                  newNext
+                                );
 
                               setEditingBeltRank(newCurrent);
 
@@ -1086,14 +1369,18 @@ export default function KaratekasPage() {
                         </div>
 
                         <div>
-                          <label className="mb-1 block text-[11px] text-gray-300">Nästa grad (auto)</label>
+                          <label className="mb-1 block text-[11px] text-gray-300">
+                            Nästa grad (auto)
+                          </label>
                           <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-xs text-gray-100">
                             {getBeltLabel(getNextBeltRank(editingBeltRank))}
                           </div>
                         </div>
 
                         <div>
-                          <label className="mb-1 block text-[11px] text-gray-300">Kräver antal pass (auto)</label>
+                          <label className="mb-1 block text-[11px] text-gray-300">
+                            Kräver antal pass (auto)
+                          </label>
                           <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-xs text-gray-100">
                             {getRequiredSessionsForNextBelt(
                               editingBeltRank,
@@ -1137,31 +1424,45 @@ export default function KaratekasPage() {
                       </li>
                     </ul>
                   ) : (
-                    <p className="text-[11px] text-gray-400">Saknar fyskrav för detta bälte.</p>
+                    <p className="text-[11px] text-gray-400">
+                      Saknar fyskrav för detta bälte.
+                    </p>
                   )}
                 </div>
               )}
 
               {/* Graderingsstatus */}
               <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                <p className="mb-2 text-xs font-semibold text-gray-200">Graderingsstatus</p>
+                <p className="mb-2 text-xs font-semibold text-gray-200">
+                  Graderingsstatus
+                </p>
 
                 {role === "member" && editingVisibility.showGradingStatus && (
                   <div className="space-y-2 text-xs">
-                    {(["Kihon", "Kata", "Kumite", "Fysik"] as const).map((label, idx) => {
-                      const key = ["kihon", "kata", "kumite", "physical"][idx] as keyof GradingStatus;
-                      const { label: text, color } = getGradingLabelAndColor(
-                        selectedMember.gradingStatus[key]
-                      );
-                      return (
-                        <div key={label} className="flex items-center justify-between gap-2">
-                          <span className="text-gray-200">{label}</span>
-                          <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${color}`}>
-                            {text}
-                          </span>
-                        </div>
-                      );
-                    })}
+                    {(["Kihon", "Kata", "Kumite", "Fysik"] as const).map(
+                      (label, idx) => {
+                        const key = ["kihon", "kata", "kumite", "physical"][
+                          idx
+                        ] as keyof GradingStatus;
+                        const { label: text, color } =
+                          getGradingLabelAndColor(
+                            selectedMember.gradingStatus[key]
+                          );
+                        return (
+                          <div
+                            key={label}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <span className="text-gray-200">{label}</span>
+                            <span
+                              className={`rounded-full px-2 py-1 text-[11px] font-semibold ${color}`}
+                            >
+                              {text}
+                            </span>
+                          </div>
+                        );
+                      }
+                    )}
                   </div>
                 )}
 
@@ -1192,9 +1493,11 @@ export default function KaratekasPage() {
                               ).map(([btnLabel, val]) => {
                                 const isActive = currentValue === val;
 
-                                let baseColor = "bg-gray-800 text-gray-200 border-gray-600";
+                                let baseColor =
+                                  "bg-gray-800 text-gray-200 border-gray-600";
                                 if (val === "not_ready")
-                                  baseColor = "bg-red-950/60 text-red-100 border-red-700";
+                                  baseColor =
+                                    "bg-red-950/60 text-red-100 border-red-700";
                                 if (val === "partial")
                                   baseColor =
                                     "bg-orange-950/60 text-orange-100 border-orange-700";
@@ -1218,7 +1521,10 @@ export default function KaratekasPage() {
                                       setEditingGradingStatus((prev) => {
                                         if (!prev || disabled) return prev;
 
-                                        const updatedStatus: GradingStatus = { ...prev, [key]: val };
+                                        const updatedStatus: GradingStatus = {
+                                          ...prev,
+                                          [key]: val,
+                                        };
 
                                         const newProgress = calculateProgress(
                                           updatedStatus,
@@ -1270,12 +1576,10 @@ export default function KaratekasPage() {
                             );
                           }}
                         />
-                        <span className="text-[11px] text-gray-200">Räkna in fysik i graderingen</span>
+                        <span className="text-[11px] text-gray-200">
+                          Räkna in fysik i graderingen
+                        </span>
                       </div>
-
-                      <p className="mt-1 text-[10px] text-gray-500">
-                        (Ändringar sparas permanent först när du klickar på &quot;Spara ändringar&quot; längst ner.)
-                      </p>
                     </div>
 
                     <div className="mt-3">
@@ -1285,34 +1589,45 @@ export default function KaratekasPage() {
                         onClick={async () => {
                           try {
                             await approveGrading(selectedMember);
-                            setToast({ type: "success", text: "Gradering godkänd!" });
+                            setToast({
+                              type: "success",
+                              text: "Gradering godkänd!",
+                            });
                             setToastVisible(true);
                             setTimeout(() => setToastVisible(false), 1400);
                           } catch (err) {
-                            console.error("Kunde inte godkänna gradering:", err);
-                            setToast({ type: "error", text: "Kunde inte godkänna." });
+                            console.error(err);
+                            setToast({
+                              type: "error",
+                              text: "Kunde inte godkänna.",
+                            });
                             setToastVisible(true);
                             setTimeout(() => setToastVisible(false), 2000);
                           }
                         }}
                       >
-                        Godkänn gradering (byt till {getBeltLabel(selectedMember.nextBeltRank)})
+                        Godkänn gradering (byt till{" "}
+                        {getBeltLabel(selectedMember.nextBeltRank)})
                       </button>
                     </div>
                   </>
                 )}
               </div>
 
-              {/* Kommentar till medlem */}
+              {/* Kommentar */}
               <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                <p className="mb-2 text-xs font-semibold text-gray-200">Kommentar till medlem</p>
+                <p className="mb-2 text-xs font-semibold text-gray-200">
+                  Kommentar till medlem
+                </p>
                 {role === "member" ? (
                   selectedMember.visibility.showMemberComment ? (
                     <p className="text-xs text-gray-200 whitespace-pre-line">
                       {selectedMember.memberComment || "Ingen kommentar ännu."}
                     </p>
                   ) : (
-                    <p className="text-[11px] text-gray-500">Denna information är inte tillgänglig.</p>
+                    <p className="text-[11px] text-gray-500">
+                      Denna information är inte tillgänglig.
+                    </p>
                   )
                 ) : (
                   <textarea
@@ -1326,18 +1641,19 @@ export default function KaratekasPage() {
               {/* Intern kommentar */}
               {role !== "member" && (
                 <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-gray-200">Intern instruktörskommentar</p>
+                  <p className="mb-2 text-xs font-semibold text-gray-200">
+                    Intern instruktörskommentar
+                  </p>
                   <textarea
                     className="h-20 w-full resize-none rounded-md border border-gray-700 bg-black/60 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
                     value={editingInstructorComment}
                     onChange={(e) => setEditingInstructorComment(e.target.value)}
                   />
-                  <p className="mt-1 text-[10px] text-gray-500">Denna kommentar visas inte för medlemmen.</p>
                 </div>
               )}
             </div>
 
-            {/* Sticky Footer */}
+            {/* FOOTER */}
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-white/10 bg-neutral-950">
               {role !== "member" && (
                 <button
@@ -1345,19 +1661,15 @@ export default function KaratekasPage() {
                   className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
                   onClick={async () => {
                     try {
-                      if (!selectedMember || !editingGradingStatus || !editingVisibility) {
-                        setToast({ type: "error", text: "Kan inte spara." });
-                        setToastVisible(true);
-                        setTimeout(() => setToastVisible(false), 1600);
-                        return;
-                      }
-
                       setToast({ type: "success", text: "Sparar..." });
                       setToastVisible(true);
 
                       const newCurrent = editingBeltRank;
                       const newNext = getNextBeltRank(newCurrent);
-                      const newRequired = getRequiredSessionsForNextBelt(newCurrent, newNext);
+                      const newRequired = getRequiredSessionsForNextBelt(
+                        newCurrent,
+                        newNext
+                      );
 
                       const updated: Member = {
                         ...selectedMember,
@@ -1389,7 +1701,7 @@ export default function KaratekasPage() {
                       setToastVisible(true);
                       setTimeout(() => setToastVisible(false), 1200);
                     } catch (err) {
-                      console.error("Spara ändringar: FEL", err);
+                      console.error(err);
                       setToast({ type: "error", text: "Kunde inte spara." });
                       setToastVisible(true);
                       setTimeout(() => setToastVisible(false), 2000);
@@ -1403,16 +1715,7 @@ export default function KaratekasPage() {
               <button
                 type="button"
                 className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
-                onClick={() => {
-                  setSelectedMember(null);
-                  setEditingGradingStatus(null);
-                  setEditingMemberComment("");
-                  setEditingInstructorComment("");
-                  setEditingVisibility(null);
-                  setEditingPhysicalEnabled(false);
-                  setEditingBeltRank("9_kyu");
-                  setEditingBirthYmd("");
-                }}
+                onClick={closeProfile}
               >
                 Stäng
               </button>
@@ -1421,7 +1724,9 @@ export default function KaratekasPage() {
         </div>
       )}
 
-      {/* Lägg till medlem-popup */}
+      {/* =====================================================
+          ADD MEMBER POPUP
+      ====================================================== */}
       {isAddOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-6">
           <div className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-xl bg-neutral-950 p-4 shadow-xl border border-white/10">
@@ -1482,10 +1787,6 @@ export default function KaratekasPage() {
                     })()}
                   </span>
                 </div>
-
-                <p className="mt-1 text-[10px] text-gray-500">
-                  Skriv 6 siffror (YYMMDD). Åldern beräknas automatiskt.
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1588,7 +1889,7 @@ export default function KaratekasPage() {
                     setIsAddOpen(false);
                   } catch (err) {
                     console.error("Kunde inte skapa medlem:", err);
-                    alert("Det gick inte att skapa medlemmen. Försök igen.");
+                    alert("Det gick inte att skapa medlemmen.");
                   }
                 }}
               >
