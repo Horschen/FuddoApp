@@ -11,6 +11,8 @@ import { supabase } from "@/lib/supabaseClient";
 /* =========================================================
    TYPES
 ========================================================= */
+type MemberRole = "member" | "admin" | "superadmin";
+
 type BeltRank =
   | "9_kyu"
   | "8_kyu"
@@ -86,6 +88,9 @@ type Member = {
 
   // Synlighet i listan
   isPublic: boolean;
+
+  // Roll / behörighet
+  role: MemberRole;
 };
 
 /* =========================================================
@@ -121,23 +126,41 @@ const beltOrder: BeltRank[] = [
 function getBeltColor(belt: BeltRank): string {
   switch (belt) {
     case "9_kyu":
-      return "bg-red-900/50";
+      // Rött
+      return "bg-red-900/60";
+
     case "8_kyu":
-      return "bg-yellow-900/40";
+      // Ljusare, ren gul
+      return "bg-yellow-400/30";
+
     case "7_kyu":
-      return "bg-orange-500/40";
+      // Klarare, lite kallare orange
+      return "bg-orange-500/30";
+
     case "6_kyu":
-      return "bg-green-900/40";
+      // Grönt
+      return "bg-green-800/40";
+
     case "5_kyu":
-      return "bg-blue-900/40";
+      // Ljusblå
+      return "bg-sky-500/30";
+
     case "4_kyu":
-      return "bg-blue-800/40";
+      // Något mörkare blå
+      return "bg-blue-700/30";
+
     case "3_kyu":
-      return "bg-amber-900/40";
+      // Ljusbrun
+      return "bg-amber-600/30";
+
     case "2_kyu":
-      return "bg-amber-800/40";
+      // Mörkare brun
+      return "bg-amber-700/30";
+
     case "1_kyu":
-      return "bg-amber-700/40";
+      // Ännu mörkare brun
+      return "bg-amber-800/30";
+
     default:
       return "bg-gray-800/60";
   }
@@ -372,12 +395,13 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
       grading_kumite,
       grading_physical,
       physical_enabled,
-      is_public
+      is_public,
+      role
     `
     );
 
   if (error) {
-    console.error("Fel vid hämtning av medlemmar:", error);
+    console.error("Fel vid hämtning av medlemmar:", error.message, error);
     return [];
   }
   if (!data || data.length === 0) return [];
@@ -429,6 +453,7 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
       gradingStatus,
       physicalEnabled,
       isPublic: row.is_public ?? true,
+      role: (row.role as MemberRole) ?? "member",
     };
   });
 }
@@ -485,6 +510,7 @@ async function updateMemberInSupabase(member: Member) {
       grading_physical: member.gradingStatus.physical,
       physical_enabled: member.physicalEnabled,
       is_public: member.isPublic,
+      role: member.role,
     })
     .eq("id", member.id)
     .select("*");
@@ -527,6 +553,7 @@ async function insertMemberInSupabase(
       grading_physical: grading.physical,
       physical_enabled: member.physicalEnabled,
       is_public: member.isPublic,
+      role: "member",
     })
     .select(
       `
@@ -553,7 +580,8 @@ async function insertMemberInSupabase(
       grading_kumite,
       grading_physical,
       physical_enabled,
-      is_public
+      is_public,
+      role
     `
     )
     .single();
@@ -602,10 +630,13 @@ async function insertMemberInSupabase(
     gradingStatus,
     physicalEnabled,
     isPublic: data.is_public ?? true,
+    role: (data.role as MemberRole) ?? "member",
   };
 }
 
-async function fetchShareTokenForMember(memberId: string): Promise<string | null> {
+async function fetchShareTokenForMember(
+  memberId: string
+): Promise<string | null> {
   const { data, error } = await supabase
     .from("member_share_links")
     .select("token, revoked")
@@ -628,8 +659,10 @@ async function fetchShareTokenForMember(memberId: string): Promise<string | null
 export default function KaratekasPage() {
   const router = useRouter();
 
-  /* ---------- ROLE SWITCH (temp) ---------- */
-  const [role, setRole] = useState<"member" | "admin" | "superadmin">("admin");
+  /* ---------- ADMIN SESSION ROLE ---------- */
+  const [sessionRole, setSessionRole] = useState<
+    "member" | "admin" | "superadmin" | "loading"
+  >("loading");
 
   /* ---------- DATA ---------- */
   const [members, setMembers] = useState<Member[]>([]);
@@ -642,13 +675,19 @@ export default function KaratekasPage() {
   const [editingGradingStatus, setEditingGradingStatus] =
     useState<GradingStatus | null>(null);
   const [editingMemberComment, setEditingMemberComment] = useState("");
-  const [editingInstructorComment, setEditingInstructorComment] = useState("");
+  const [
+    editingInstructorComment,
+    setEditingInstructorComment,
+  ] = useState("");
   const [editingVisibility, setEditingVisibility] =
     useState<VisibilitySettings | null>(null);
-  const [editingPhysicalEnabled, setEditingPhysicalEnabled] = useState(false);
-  const [editingBeltRank, setEditingBeltRank] =
-    useState<BeltRank>("9_kyu");
+  const [editingPhysicalEnabled, setEditingPhysicalEnabled] =
+    useState(false);
+  const [editingBeltRank, setEditingBeltRank] = useState<BeltRank>("9_kyu");
   const [editingBirthYmd, setEditingBirthYmd] = useState("");
+  const [editingAdminPassword, setEditingAdminPassword] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUploadError, setAvatarUploadError] = useState<string | null>(null);
 
   /* ---------- SHARE STATE (for admin) ---------- */
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -680,6 +719,39 @@ export default function KaratekasPage() {
     })();
   }, []);
 
+  // Hämta admin-roll från /api/admin/me
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSession = async () => {
+      try {
+        const res = await fetch("/api/admin/me", { cache: "no-store" });
+        if (!res.ok) {
+          if (!cancelled) setSessionRole("member");
+          return;
+        }
+        const json = await res.json();
+        if (
+          json.authenticated &&
+          (json.role === "admin" || json.role === "superadmin")
+        ) {
+          if (!cancelled) setSessionRole(json.role);
+        } else {
+          if (!cancelled) setSessionRole("member");
+        }
+      } catch (err) {
+        console.error("Kunde inte hämta adminsession:", err);
+        if (!cancelled) setSessionRole("member");
+      }
+    };
+
+    loadSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /* ---------- BODY SCROLL LOCK FOR PROFILE POPUP ---------- */
   useEffect(() => {
     if (selectedMember) document.body.style.overflow = "hidden";
@@ -697,19 +769,11 @@ export default function KaratekasPage() {
   }, [members]);
 
   const visibleMembers = useMemo(() => {
-    return role === "admin" || role === "superadmin"
+    return sessionRole === "admin" || sessionRole === "superadmin"
       ? sortedMembers
       : sortedMembers.filter((m) => m.isPublic);
-  }, [role, sortedMembers]);
+  }, [sessionRole, sortedMembers]);
 
-  const roleButtons: {
-    key: "member" | "admin" | "superadmin";
-    label: string;
-  }[] = [
-    { key: "member", label: "Member" },
-    { key: "admin", label: "Admin" },
-    { key: "superadmin", label: "SuperAdmin" },
-  ];
 
   /* =========================================================
      ACTION HELPERS (so we can reuse blocks)
@@ -724,6 +788,8 @@ export default function KaratekasPage() {
     setEditingBeltRank(member.beltRank);
     setEditingBirthYmd(member.birthYmd ?? "");
     setShareToken(null);
+    setEditingAdminPassword("");
+
 
     // Försök hämta befintlig aktiv delningslänk från databasen
     try {
@@ -746,6 +812,7 @@ export default function KaratekasPage() {
     setEditingBeltRank("9_kyu");
     setEditingBirthYmd("");
     setShareToken(null);
+    setEditingAdminPassword("");
   }
 
   async function approveGrading(member: Member) {
@@ -802,29 +869,12 @@ export default function KaratekasPage() {
         </div>
       )}
 
-      {/* =====================================================
-          ROLE SWITCH (temp)
-      ====================================================== */}
-      <div className="flex items-center justify-center gap-2 px-4 pt-3 pb-1 text-[11px] text-gray-300">
-        <span className="mr-1 text-[10px] uppercase tracking-wide text-gray-500">
-          Vy:
-        </span>
-        {roleButtons.map((r) => (
-          <button
-            key={r.key}
-            type="button"
-            className={`rounded-full border px-2 py-1 ${
-              role === r.key
-                ? "border-blue-500 bg-blue-700 text-white"
-                : "border-gray-500 bg-black text-gray-300 hover:bg-gray-800"
-            } text-[10px] font-semibold`}
-            onClick={() => setRole(r.key)}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
 
+ {/* DEBUG */}
+      <div className="px-4 pt-2 text-[10px] text-gray-400">
+        debug: sessionRole={sessionRole}
+      </div>
+      
       {/* =====================================================
           HEADER
       ====================================================== */}
@@ -837,7 +887,7 @@ export default function KaratekasPage() {
           &#171;&#171;&#171; Tillbaka
         </button>
 
-        {(role === "admin" || role === "superadmin") && (
+        {(sessionRole === "admin" || sessionRole === "superadmin") && (
           <button
             type="button"
             className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
@@ -854,6 +904,13 @@ export default function KaratekasPage() {
           </button>
         )}
       </header>
+
+
+    {/* DEBUG - ta bort sen */}
+      <div className="px-4 text-[10px] text-gray-400">
+        debug: sessionRole={sessionRole}
+      </div>
+
 
       {/* =====================================================
           MEMBER LIST
@@ -876,7 +933,7 @@ export default function KaratekasPage() {
             const shortName = `${member.firstName} ${member.lastName.charAt(
               0
             )}.`;
-            const displayName = role === "member" ? shortName : fullName;
+            const displayName = sessionRole === "member" ? shortName : fullName;
             const rowColor = getBeltColor(member.beltRank);
             const req = physicalReqMap[member.nextBeltRank];
 
@@ -932,7 +989,7 @@ export default function KaratekasPage() {
                   <ProgressCircle progress={member.progress} />
 
                   <div className="flex items-center gap-1">
-                    {(role === "admin" || role === "superadmin") && (
+                    {(sessionRole === "admin" || sessionRole === "superadmin") && (
                       <button
                         type="button"
                         className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
@@ -944,7 +1001,7 @@ export default function KaratekasPage() {
                       </button>
                     )}
 
-                    {(role === "admin" || role === "superadmin") && (
+                    {(sessionRole === "admin" || sessionRole === "superadmin") && (
                       <button
                         type="button"
                         className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
@@ -983,18 +1040,18 @@ export default function KaratekasPage() {
             {/* HEADER */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-neutral-950">
               <h2 className="text-lg font-bold">
-                {role !== "member" && (
-                  <span className="text-gray-300">
-                    #{selectedMember.userId || "------"}{" "}
-                  </span>
-                )}
-                <span>
-                  {selectedMember.firstName}{" "}
-                  {role === "member"
-                    ? `${selectedMember.lastName.charAt(0)}.`
-                    : selectedMember.lastName}
-                </span>
-              </h2>
+  {sessionRole !== "member" && (
+    <span className="text-gray-300">
+      #{selectedMember.userId || "------"}{" "}
+    </span>
+  )}
+  <span>
+    {selectedMember.firstName}{" "}
+    {sessionRole === "member"
+      ? `${selectedMember.lastName.charAt(0)}.`
+      : selectedMember.lastName}
+  </span>
+</h2>
 
               <button
                 type="button"
@@ -1007,29 +1064,163 @@ export default function KaratekasPage() {
 
             {/* SCROLL CONTENT */}
             <div className="overflow-y-auto px-4 py-3">
-              {/* Bild + progress */}
+              
+                   {/* Bild + progress */}
               <div className="mb-4 flex items-center gap-4">
+                {/* Profilbild till vänster */}
                 <Image
                   src={selectedMember.avatarUrl}
                   alt={selectedMember.firstName}
-                  width={120}
-                  height={120}
-                  className="h-24 w-24 rounded-full object-cover"
+                  width={132}
+                  height={132}
+                  className="h-[5.5rem] w-[5.5rem] rounded-full object-cover"
                 />
-                <div className="flex flex-col items-center gap-1">
+
+                {/* Tårta + förklaring till höger om bilden */}
+                <div className="flex items-center gap-3">
+                  {/* Tårtbit i mitten-kolumnen */}
                   <LargeProgressCircle progress={selectedMember.progress} />
-                  <span className="text-[11px] text-gray-300">
-                    Progress mot nästa gradering
-                  </span>
-                  <span className="text-[10px] text-gray-400">
-                    Närvaro: {selectedMember.attendedSessions}/
-                    {selectedMember.requiredSessions} pass
-                  </span>
+
+                  {/* Förklarande text till höger om tårtan */}
+                  <div className="flex flex-col justify-center text-[10px] text-gray-300 max-w-[11rem]">
+                    <span className="font-semibold text-[11px] text-gray-100 mb-1">
+                      Detta betyder progress‑cirkeln:
+                    </span>
+
+                    {/* En rad per färg (med dina ALT+255-mellanrum) */}
+                    <span className="block">
+                      Röd       - Ej redo för gradering
+                    </span>
+                    <span className="block">
+                      Orange  - Delvis redo för gradering
+                    </span>
+                    <span className="block mb-2">
+                      Grön      - Redo för gradering
+                    </span>
+
+                    <span className="font-semibold text-[11px] text-gray-100 mt-1">
+                      Vad ingår i bedömningen?
+                    </span>
+                    <span className="block">
+                      - Antal pass: {selectedMember.attendedSessions}/
+                      {selectedMember.requiredSessions} pass
+                    </span>
+                    <span className="block">
+                      - Godkänd Kihon, Kata och Kumite
+                    </span>
+                    <span className="block">
+                      - Ev. fysiskt krav om det är aktiverat
+                    </span>
+                  </div>
                 </div>
               </div>
 
+{/* Byt profilbild (endast Admin/SuperAdmin) */}
+              {(sessionRole === "admin" || sessionRole === "superadmin") && (
+                <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-gray-200">
+                    Profilbild
+                  </p>
+
+                  <p className="mb-2 text-[11px] text-gray-400">
+                    Ladda upp en ny bild för den här medlemmen. Bilden visas både
+                    här och i medlemslistan.
+                  </p>
+
+                  {/* Dold fil-input + knapp */}
+                  <input
+                    id="avatar-upload-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !selectedMember) return;
+
+                      setAvatarUploadError(null);
+                      setUploadingAvatar(true);
+
+                      try {
+                        const formData = new FormData();
+                        formData.append("file", file);
+                        formData.append("memberId", selectedMember.id);
+
+                        const res = await fetch("/api/avatar-upload", {
+                          method: "POST",
+                          body: formData,
+                        });
+
+                        const json = await res.json().catch(() => null);
+
+                        if (!res.ok) {
+                          throw new Error(json?.error ?? "Kunde inte ladda upp bild.");
+                        }
+
+                        const newUrl = json.avatarUrl as string;
+
+                        // Uppdatera valt member + listan
+                        setSelectedMember((prev) =>
+                          prev ? { ...prev, avatarUrl: newUrl } : prev
+                        );
+                        setMembers((prev) =>
+                          prev.map((m) =>
+                            m.id === selectedMember.id ? { ...m, avatarUrl: newUrl } : m
+                          )
+                        );
+
+                        setToast({
+                          type: "success",
+                          text: "Profilbild uppdaterad!",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 1400);
+                      } catch (err) {
+                        console.error(err);
+                        setAvatarUploadError(
+                          err instanceof Error ? err.message : "Kunde inte ladda upp bild."
+                        );
+                        setToast({
+                          type: "error",
+                          text: "Kunde inte ladda upp bild.",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 2000);
+                      } finally {
+                        setUploadingAvatar(false);
+                        // Töm file input så man kan välja samma fil igen om man vill
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={uploadingAvatar}
+                  />
+
+                  <label
+                    htmlFor="avatar-upload-input"
+                    className={`inline-flex cursor-pointer items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${
+                      uploadingAvatar
+                        ? "bg-gray-900 text-gray-500"
+                        : "bg-gray-800 text-gray-100 hover:bg-gray-700"
+                    }`}
+                  >
+                    {uploadingAvatar ? "Laddar upp..." : "Ladda upp profilbild"}
+                  </label>
+
+                  {uploadingAvatar && (
+                    <p className="mt-2 text-[11px] text-gray-300">
+                      Laddar upp bild...
+                    </p>
+                  )}
+
+                  {avatarUploadError && (
+                    <p className="mt-1 text-[11px] text-red-400">
+                      {avatarUploadError}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Synlighet */}
-              {(role === "admin" || role === "superadmin") && (
+              {(sessionRole === "admin" || sessionRole === "superadmin") && (
                 <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
                   <p className="mb-2 text-xs font-semibold text-gray-200">
                     Synlighet i medlemslistan
@@ -1090,7 +1281,7 @@ export default function KaratekasPage() {
               )}
 
               {/* Dela profil (komplett, inkl "Delar profil för" + "Öppna länk") */}
-              {(role === "admin" || role === "superadmin") && (
+              {(sessionRole === "admin" || sessionRole === "superadmin") && (
                 <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
                   <p className="mb-2 text-xs font-semibold text-gray-200">
                     Dela profil
@@ -1286,6 +1477,123 @@ export default function KaratekasPage() {
                 </div>
               )}
 
+              {/* Adminlösenord (Admin + SuperAdmin) */}
+{(sessionRole === "admin" || sessionRole === "superadmin") && (
+  <div className="mb-4 rounded-lg border border-cyan-500/30 bg-black/40 p-3">
+    <p className="mb-2 text-xs font-semibold text-cyan-100">
+      Adminlösenord
+    </p>
+
+    <p className="mb-2 text-[11px] text-gray-400">
+      Sätt eller byt adminlösenord för den här profilen. Lösenordet sparas
+      aldrig i klartext.
+    </p>
+
+    <input
+      type="password"
+      autoComplete="new-password"
+      className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+      value={editingAdminPassword}
+      onChange={(e) => setEditingAdminPassword(e.target.value)}
+      placeholder="Skriv nytt lösenord"
+    />
+
+    <button
+      type="button"
+      className="mt-2 rounded-md bg-cyan-700 px-3 py-1 text-xs font-semibold text-cyan-50 hover:bg-cyan-600"
+      onClick={async () => {
+        try {
+          if (!selectedMember) return;
+
+          if (!editingAdminPassword.trim()) {
+            alert("Skriv in ett lösenord först.");
+            return;
+          }
+
+          const res = await fetch("/api/admin/setPassword", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              memberId: selectedMember.id,
+              newPassword: editingAdminPassword,
+            }),
+          });
+
+          const json = await res.json().catch(() => null);
+
+          if (!res.ok) {
+            throw new Error(json?.error ?? "Kunde inte spara lösenord.");
+          }
+
+          setEditingAdminPassword("");
+
+          setToast({
+            type: "success",
+            text: "Adminlösenord sparat!",
+          });
+          setToastVisible(true);
+          setTimeout(() => setToastVisible(false), 1400);
+        } catch (err) {
+          console.error(err);
+          setToast({
+            type: "error",
+            text: "Kunde inte spara lösenord.",
+          });
+          setToastVisible(true);
+          setTimeout(() => setToastVisible(false), 2000);
+        }
+      }}
+    >
+      Spara lösenord
+    </button>
+  </div>
+)}
+
+ {/* Roll / rättigheter (endast SuperAdmin) */}
+{sessionRole === "superadmin" && (
+  <div className="mb-4 rounded-lg border border-purple-500/40 bg-black/40 p-3">
+    <p className="mb-2 text-xs font-semibold text-purple-100">
+      Rättigheter / roll
+    </p>
+
+    <p className="mb-2 text-[11px] text-gray-300">
+      Nuvarande roll:{" "}
+      <span className="font-semibold">
+        {selectedMember.role === "member"
+          ? "Medlem"
+          : selectedMember.role === "admin"
+          ? "Admin"
+          : "SuperAdmin"}
+      </span>
+    </p>
+
+    <label className="mb-1 block text-[11px] text-gray-300">
+      Ändra roll
+    </label>
+
+    <select
+      className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-purple-500 focus:outline-none"
+      value={selectedMember.role}
+      onChange={(e) => {
+        const newRole = e.target.value as MemberRole;
+        setSelectedMember((prev) =>
+          prev ? { ...prev, role: newRole } : prev
+        );
+      }}
+    >
+      <option value="member">Medlem</option>
+      <option value="admin">Admin</option>
+      <option value="superadmin">SuperAdmin</option>
+    </select>
+
+    <p className="mt-2 text-[10px] text-gray-500">
+      Endast SuperAdmin kan ändra roller.
+    </p>
+  </div>
+)}
+
               {/* Grundinfo */}
               <div className="mb-4 space-y-2 text-sm">
                 {editingVisibility.showAge && (
@@ -1297,7 +1605,7 @@ export default function KaratekasPage() {
                       </span>
                     </p>
 
-                    {(role === "admin" || role === "superadmin") && (
+                    {(sessionRole === "admin" || sessionRole === "superadmin") && (
                       <div className="mt-2">
                         <label className="mb-1 block text-[11px] text-gray-300">
                           Födelsedata (YYMMDD)
@@ -1331,7 +1639,7 @@ export default function KaratekasPage() {
 
                 {editingVisibility.showBeltInfo && (
                   <>
-                    {role === "member" ? (
+                    {sessionRole === "member" ? (
                       <>
                         <p className="text-gray-200">
                           Nuvarande:{" "}
@@ -1464,7 +1772,7 @@ export default function KaratekasPage() {
                   Graderingsstatus
                 </p>
 
-                {role === "member" && editingVisibility.showGradingStatus && (
+                {sessionRole === "member" && editingVisibility.showGradingStatus && (
                   <div className="space-y-2 text-xs">
                     {(["Kihon", "Kata", "Kumite", "Fysik"] as const).map(
                       (label, idx) => {
@@ -1493,7 +1801,7 @@ export default function KaratekasPage() {
                   </div>
                 )}
 
-                {role !== "member" && (
+                {sessionRole !== "member" && (
                   <>
                     <div className="space-y-3 text-[11px] mt-2">
                       {(
@@ -1646,7 +1954,7 @@ export default function KaratekasPage() {
                 <p className="mb-2 text-xs font-semibold text-gray-200">
                   Kommentar till medlem
                 </p>
-                {role === "member" ? (
+                {sessionRole === "member" ? (
                   selectedMember.visibility.showMemberComment ? (
                     <p className="text-xs text-gray-200 whitespace-pre-line">
                       {selectedMember.memberComment || "Ingen kommentar ännu."}
@@ -1666,7 +1974,7 @@ export default function KaratekasPage() {
               </div>
 
               {/* Intern kommentar */}
-              {role !== "member" && (
+              {sessionRole !== "member" && (
                 <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
                   <p className="mb-2 text-xs font-semibold text-gray-200">
                     Intern instruktörskommentar
@@ -1682,7 +1990,7 @@ export default function KaratekasPage() {
 
             {/* FOOTER */}
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-white/10 bg-neutral-950">
-              {role !== "member" && (
+              {sessionRole !== "member" && (
                 <button
                   type="button"
                   className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
@@ -1715,6 +2023,7 @@ export default function KaratekasPage() {
                         visibility: editingVisibility,
                         physicalEnabled: editingPhysicalEnabled,
                         birthYmd: editingBirthYmd,
+                        role: selectedMember.role,
                       };
 
                       await updateMemberInSupabase(updated);
@@ -1908,6 +2217,7 @@ export default function KaratekasPage() {
                     },
                     physicalEnabled: false,
                     isPublic: newIsPublic,
+                    role: "member",
                   };
 
                   try {

@@ -12,6 +12,8 @@ function getSupabaseAdmin() {
   });
 }
 
+const CLUB_ID = "112e386e-5e6b-4657-956e-f202f5558158"; // samma som i karatekas-sidan
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ token: string }> }
@@ -19,10 +21,7 @@ export async function GET(
   const { token } = await params;
 
   if (!token || token.length < 10) {
-    return NextResponse.json(
-      { error: "Invalid token" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid token" }, { status: 400 });
   }
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -73,13 +72,36 @@ export async function GET(
     .single();
 
   if (memberError || !member) {
-    return NextResponse.json(
-      { error: "Member not found" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Member not found" }, { status: 404 });
   }
 
-  // 3) Skicka tillbaka bara det som får visas
+  // 3) Hämta fysiska krav för medlems nästa bälte (om aktiverat)
+  let physicalRequirements: {
+    beltRank: string;
+    pushups: number;
+    situps: number;
+    squats: number;
+  } | null = null;
+
+  if (member.physical_enabled) {
+    const { data: phys, error: physError } = await supabaseAdmin
+      .from("physical_requirements")
+      .select("belt_rank, pushups, situps, squats")
+      .eq("club_id", CLUB_ID)
+      .eq("belt_rank", member.next_belt_rank)
+      .maybeSingle();
+
+    if (!physError && phys) {
+      physicalRequirements = {
+        beltRank: phys.belt_rank,
+        pushups: phys.pushups ?? 0,
+        situps: phys.situps ?? 0,
+        squats: phys.squats ?? 0,
+      };
+    }
+  }
+
+  // 4) Skicka tillbaka bara det som får visas
   return NextResponse.json({
     member: {
       id: member.id,
@@ -107,6 +129,7 @@ export async function GET(
         physical: member.grading_physical ?? "not_ready",
       },
       physicalEnabled: member.physical_enabled ?? false,
+      physicalRequirements, // kan vara null
     },
   });
 }
