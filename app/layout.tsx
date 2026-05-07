@@ -6,6 +6,14 @@ export const metadata: Metadata = {
   description: "Karateklubbsadministration och närvarosystem",
 };
 
+// Förhindrar pinch-zoom så layouten håller sig centrerad på mobil
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: {
