@@ -484,6 +484,8 @@ async function fetchPhysicalRequirementsFromSupabase(): Promise<
   return map;
 }
 
+// Denna funktion används inte längre direkt i frontend när vi POSTar till API-route.
+// Den behövs dock om någon annan del av koden använder den direkt. Behåller den för säkerhets skull.
 async function updateMemberInSupabase(member: Member) {
   const { data, error } = await supabase
     .from("members")
@@ -842,9 +844,24 @@ export default function KaratekasPage() {
       ),
     };
 
-    await updateMemberInSupabase(updated);
-    setMembers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-    setSelectedMember(updated);
+    // Anropa API-route för att säkerställa loggning
+    const res = await fetch("/api/admin/members/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(json?.error ?? "Kunde inte uppdatera medlemmen.");
+    }
+
+    const serverMember = json.member as Member;
+
+    // Uppdatera state med den server-returerade medlemmen
+    setMembers((prev) => prev.map((m) => (m.id === serverMember.id ? serverMember : m)));
+    setSelectedMember(serverMember);
   }
 
   /* =========================================================
@@ -870,11 +887,6 @@ export default function KaratekasPage() {
       )}
 
 
- {/* DEBUG */}
-      <div className="px-4 pt-2 text-[10px] text-gray-400">
-        debug: sessionRole={sessionRole}
-      </div>
-      
       {/* =====================================================
           HEADER
       ====================================================== */}
@@ -904,12 +916,6 @@ export default function KaratekasPage() {
           </button>
         )}
       </header>
-
-
-    {/* DEBUG - ta bort sen */}
-      <div className="px-4 text-[10px] text-gray-400">
-        debug: sessionRole={sessionRole}
-      </div>
 
 
       {/* =====================================================
@@ -1242,22 +1248,43 @@ export default function KaratekasPage() {
                       }`}
                       onClick={async () => {
                         try {
-                          const updated = {
+                          const updated: Member = {
                             ...selectedMember,
                             isPublic: !selectedMember.isPublic,
                           };
-                          await updateMemberInSupabase(updated);
 
-                          setSelectedMember(updated);
+                          // Anropa nya API-routen så att ändringen loggas
+                          const res = await fetch(
+                            "/api/admin/members/update",
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                              },
+                              body: JSON.stringify(updated),
+                            }
+                          );
+
+                          const json = await res.json().catch(() => null);
+
+                          if (!res.ok) {
+                            throw new Error(
+                              json?.error ?? "Kunde inte uppdatera medlemmen."
+                            );
+                          }
+
+                          const serverMember = json.member as Member;
+
+                          setSelectedMember(serverMember);
                           setMembers((prev) =>
                             prev.map((m) =>
-                              m.id === updated.id ? updated : m
+                              m.id === serverMember.id ? serverMember : m
                             )
                           );
 
                           setToast({
                             type: "success",
-                            text: updated.isPublic
+                            text: serverMember.isPublic
                               ? "Satt till Publik"
                               : "Satt till Inte publik",
                           });
@@ -1478,121 +1505,121 @@ export default function KaratekasPage() {
               )}
 
               {/* Adminlösenord (Admin + SuperAdmin) */}
-{(sessionRole === "admin" || sessionRole === "superadmin") && (
-  <div className="mb-4 rounded-lg border border-cyan-500/30 bg-black/40 p-3">
-    <p className="mb-2 text-xs font-semibold text-cyan-100">
-      Adminlösenord
-    </p>
+              {(sessionRole === "admin" || sessionRole === "superadmin") && (
+                <div className="mb-4 rounded-lg border border-cyan-500/30 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-cyan-100">
+                    Adminlösenord
+                  </p>
 
-    <p className="mb-2 text-[11px] text-gray-400">
-      Sätt eller byt adminlösenord för den här profilen. Lösenordet sparas
-      aldrig i klartext.
-    </p>
+                  <p className="mb-2 text-[11px] text-gray-400">
+                    Sätt eller byt adminlösenord för den här profilen. Lösenordet sparas
+                    aldrig i klartext.
+                  </p>
 
-    <input
-      type="password"
-      autoComplete="new-password"
-      className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
-      value={editingAdminPassword}
-      onChange={(e) => setEditingAdminPassword(e.target.value)}
-      placeholder="Skriv nytt lösenord"
-    />
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+                    value={editingAdminPassword}
+                    onChange={(e) => setEditingAdminPassword(e.target.value)}
+                    placeholder="Skriv nytt lösenord"
+                  />
 
-    <button
-      type="button"
-      className="mt-2 rounded-md bg-cyan-700 px-3 py-1 text-xs font-semibold text-cyan-50 hover:bg-cyan-600"
-      onClick={async () => {
-        try {
-          if (!selectedMember) return;
+                  <button
+                    type="button"
+                    className="mt-2 rounded-md bg-cyan-700 px-3 py-1 text-xs font-semibold text-cyan-50 hover:bg-cyan-600"
+                    onClick={async () => {
+                      try {
+                        if (!selectedMember) return;
 
-          if (!editingAdminPassword.trim()) {
-            alert("Skriv in ett lösenord först.");
-            return;
-          }
+                        if (!editingAdminPassword.trim()) {
+                          alert("Skriv in ett lösenord först.");
+                          return;
+                        }
 
-          const res = await fetch("/api/admin/setPassword", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              memberId: selectedMember.id,
-              newPassword: editingAdminPassword,
-            }),
-          });
+                        const res = await fetch("/api/admin/setPassword", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            memberId: selectedMember.id,
+                            newPassword: editingAdminPassword,
+                          }),
+                        });
 
-          const json = await res.json().catch(() => null);
+                        const json = await res.json().catch(() => null);
 
-          if (!res.ok) {
-            throw new Error(json?.error ?? "Kunde inte spara lösenord.");
-          }
+                        if (!res.ok) {
+                          throw new Error(json?.error ?? "Kunde inte spara lösenord.");
+                        }
 
-          setEditingAdminPassword("");
+                        setEditingAdminPassword("");
 
-          setToast({
-            type: "success",
-            text: "Adminlösenord sparat!",
-          });
-          setToastVisible(true);
-          setTimeout(() => setToastVisible(false), 1400);
-        } catch (err) {
-          console.error(err);
-          setToast({
-            type: "error",
-            text: "Kunde inte spara lösenord.",
-          });
-          setToastVisible(true);
-          setTimeout(() => setToastVisible(false), 2000);
-        }
-      }}
-    >
-      Spara lösenord
-    </button>
-  </div>
-)}
+                        setToast({
+                          type: "success",
+                          text: "Adminlösenord sparat!",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 1400);
+                      } catch (err) {
+                        console.error(err);
+                        setToast({
+                          type: "error",
+                          text: "Kunde inte spara lösenord.",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 2000);
+                      }
+                    }}
+                  >
+                    Spara lösenord
+                  </button>
+                </div>
+              )}
 
- {/* Roll / rättigheter (endast SuperAdmin) */}
-{sessionRole === "superadmin" && (
-  <div className="mb-4 rounded-lg border border-purple-500/40 bg-black/40 p-3">
-    <p className="mb-2 text-xs font-semibold text-purple-100">
-      Rättigheter / roll
-    </p>
+              {/* Roll / rättigheter (endast SuperAdmin) */}
+              {sessionRole === "superadmin" && (
+                <div className="mb-4 rounded-lg border border-purple-500/40 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-purple-100">
+                    Rättigheter / roll
+                  </p>
 
-    <p className="mb-2 text-[11px] text-gray-300">
-      Nuvarande roll:{" "}
-      <span className="font-semibold">
-        {selectedMember.role === "member"
-          ? "Medlem"
-          : selectedMember.role === "admin"
-          ? "Admin"
-          : "SuperAdmin"}
-      </span>
-    </p>
+                  <p className="mb-2 text-[11px] text-gray-300">
+                    Nuvarande roll:{" "}
+                    <span className="font-semibold">
+                      {selectedMember.role === "member"
+                        ? "Medlem"
+                        : selectedMember.role === "admin"
+                        ? "Admin"
+                        : "SuperAdmin"}
+                    </span>
+                  </p>
 
-    <label className="mb-1 block text-[11px] text-gray-300">
-      Ändra roll
-    </label>
+                  <label className="mb-1 block text-[11px] text-gray-300">
+                    Ändra roll
+                  </label>
 
-    <select
-      className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-purple-500 focus:outline-none"
-      value={selectedMember.role}
-      onChange={(e) => {
-        const newRole = e.target.value as MemberRole;
-        setSelectedMember((prev) =>
-          prev ? { ...prev, role: newRole } : prev
-        );
-      }}
-    >
-      <option value="member">Medlem</option>
-      <option value="admin">Admin</option>
-      <option value="superadmin">SuperAdmin</option>
-    </select>
+                  <select
+                    className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-purple-500 focus:outline-none"
+                    value={selectedMember.role}
+                    onChange={(e) => {
+                      const newRole = e.target.value as MemberRole;
+                      setSelectedMember((prev) =>
+                        prev ? { ...prev, role: newRole } : prev
+                      );
+                    }}
+                  >
+                    <option value="member">Medlem</option>
+                    <option value="admin">Admin</option>
+                    <option value="superadmin">SuperAdmin</option>
+                  </select>
 
-    <p className="mt-2 text-[10px] text-gray-500">
-      Endast SuperAdmin kan ändra roller.
-    </p>
-  </div>
-)}
+                  <p className="mt-2 text-[10px] text-gray-500">
+                    Endast SuperAdmin kan ändra roller.
+                  </p>
+                </div>
+              )}
 
               {/* Grundinfo */}
               <div className="mb-4 space-y-2 text-sm">
@@ -2026,11 +2053,25 @@ export default function KaratekasPage() {
                         role: selectedMember.role,
                       };
 
-                      await updateMemberInSupabase(updated);
+                      const res = await fetch("/api/admin/members/update", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(updated),
+                      });
 
-                      setSelectedMember(updated);
+                      const json = await res.json().catch(() => null);
+
+                      if (!res.ok) {
+                        throw new Error(json?.error ?? "Kunde inte uppdatera medlemmen.");
+                      }
+
+                      const serverMember = json.member as Member;
+
+                      setSelectedMember(serverMember);
                       setMembers((prev) =>
-                        prev.map((m) => (m.id === updated.id ? updated : m))
+                        prev.map((m) =>
+                          m.id === serverMember.id ? serverMember : m
+                        )
                       );
 
                       setToast({ type: "success", text: "Sparat!" });

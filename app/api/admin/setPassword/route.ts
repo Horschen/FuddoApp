@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash, randomBytes } from "crypto";
+import { jwtVerify } from "jose";
+import { insertAdminLog } from "../logsHelper";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,41 @@ function getSupabaseAdmin() {
 
 function hashPassword(password: string, salt: string) {
   return createHash("sha256").update(`${salt}:${password}`).digest("hex");
+}
+
+function getAdminSessionSecret() {
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret) {
+    throw new Error("ADMIN_SESSION_SECRET saknas i miljövariablerna.");
+  }
+  return new TextEncoder().encode(secret);
+}
+
+async function getAdminPayloadFromRequest(req: Request): Promise<{
+  actorString: string;
+}> {
+  try {
+    const cookieHeader = req.headers.get("cookie") ?? "";
+    const cookies = Object.fromEntries(
+      cookieHeader
+        .split(";")
+        .map((c) => c.trim().split("=", 2) as [string, string])
+        .filter(([k]) => k)
+    );
+
+    const token = cookies["admin_session"];
+    if (!token) return { actorString: "Okänd (ingen session)" };
+
+    const secret = getAdminSessionSecret();
+    const { payload } = await jwtVerify(token, secret);
+
+    const role = (payload.role as string) ?? "okänd roll";
+    const name = (payload.name as string) ?? "Okänd";
+    return { actorString: `${role} (${name})` };
+  } catch (err) {
+    console.warn("Kunde inte läsa admin_session i setPassword:", err);
+    return { actorString: "Okänd (fel vid läsning av session)" };
+  }
 }
 
 export async function POST(request: Request) {
@@ -47,6 +84,18 @@ export async function POST(request: Request) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
+    // Hämta info om målanvändaren (för loggens details)
+    const { data: targetMember, error: targetError } = await supabaseAdmin
+      .from("members")
+      .select("id, first_name, last_name")
+      .eq("id", memberId)
+      .maybeSingle();
+
+    if (targetError) {
+      console.error("Fel vid hämtning av target-medlem i setPassword:", targetError);
+    }
+
+    // Uppdatera lösenord
     const { error } = await supabaseAdmin
       .from("members")
       .update({
@@ -62,6 +111,23 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // Plocka ut info om vem som gör ändringen (adminen)
+    const { actorString } = await getAdminPayloadFromRequest(request);
+
+    const targetName = targetMember
+      ? `${targetMember.first_name ?? ""} ${targetMember.last_name ?? ""}`.trim()
+      : null;
+
+    // Skriv logg (best effort)
+    await insertAdminLog({
+      actor: actorString,
+      action: "set_password",
+      details: {
+        memberId,
+        targetName,
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

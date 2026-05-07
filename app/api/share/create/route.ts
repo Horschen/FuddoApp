@@ -1,5 +1,8 @@
+// app/api/share/create/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { insertAdminLog } from "../../admin/logsHelper";
+import { getAdminActorStringFromRequest } from "../../admin/sessionHelper";
 
 export const runtime = "nodejs";
 
@@ -29,7 +32,17 @@ export async function POST(request: Request) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Eftersom primary key = member_id använder vi upsert
+    // Hämta målmedlem (för loggarna)
+    const { data: member, error: memberError } = await supabaseAdmin
+      .from("members")
+      .select("id, user_id, first_name, last_name")
+      .eq("id", memberId)
+      .maybeSingle();
+
+    if (memberError) {
+      console.error("Fel vid hämtning av medlem i share/create:", memberError);
+    }
+
     const { data, error } = await supabaseAdmin
       .from("member_share_links")
       .upsert(
@@ -54,6 +67,27 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // Loggning
+    const actor = await getAdminActorStringFromRequest(request);
+    const targetName = member
+      ? `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim()
+      : null;
+    const userId = member?.user_id ?? null;
+
+    await insertAdminLog({
+      actor,
+      action: "create_share_link",
+      details: {
+        memberId,
+        userId,
+        targetName,
+        field: "share_link",
+        from: "none",
+        to: "created",
+        token,
+      },
+    });
 
     return NextResponse.json({ token: data.token });
   } catch (err) {

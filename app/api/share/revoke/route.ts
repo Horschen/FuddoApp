@@ -1,5 +1,8 @@
+// app/api/share/revoke/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { insertAdminLog } from "../../admin/logsHelper";
+import { getAdminActorStringFromRequest } from "../../admin/sessionHelper";
 
 export const runtime = "nodejs";
 
@@ -26,6 +29,28 @@ export async function POST(request: Request) {
     const memberId = body.memberId;
     const supabaseAdmin = getSupabaseAdmin();
 
+    // Hämta målmedlem + ev. befintlig token för logg
+    const [{ data: member, error: memberError }, { data: link, error: linkError }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("members")
+          .select("id, user_id, first_name, last_name")
+          .eq("id", memberId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from("member_share_links")
+          .select("token")
+          .eq("member_id", memberId)
+          .maybeSingle(),
+      ]);
+
+    if (memberError) {
+      console.error("Fel vid hämtning av medlem i share/revoke:", memberError);
+    }
+    if (linkError) {
+      console.error("Fel vid hämtning av länk i share/revoke:", linkError);
+    }
+
     const { error } = await supabaseAdmin
       .from("member_share_links")
       .update({
@@ -41,6 +66,27 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // Loggning
+    const actor = await getAdminActorStringFromRequest(request);
+    const targetName = member
+      ? `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim()
+      : null;
+    const userId = member?.user_id ?? null;
+
+    await insertAdminLog({
+      actor,
+      action: "revoke_share_link",
+      details: {
+        memberId,
+        userId,
+        targetName,
+        field: "share_link",
+        from: "active",
+        to: "revoked",
+        token: link?.token ?? null,
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {
