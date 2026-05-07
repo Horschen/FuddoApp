@@ -133,6 +133,15 @@ export default function AdminPage() {
       </header>
 
       <h1 className="text-xl font-bold mb-3">Adminpanel</h1>
+      {session.role === "superadmin" && (
+  <button
+    type="button"
+    className="mb-4 w-full rounded-md bg-purple-700 px-4 py-2 text-center text-sm font-semibold transition hover:bg-purple-600"
+    onClick={() => router.push("/admin/clubs")}
+  >
+    Hantera klubbar
+  </button>
+)}
 
       <p className="text-sm text-gray-300 mb-4">
         Här bygger vi steg för steg upp verktyg för Admin och SuperAdmin.

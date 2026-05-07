@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 /* =========================================================
@@ -16,30 +16,13 @@ type AdminSession = {
 
 type Club = {
   id: string;
+  slug: string;
   name: string;
-  logo: string;
+  logo_url: string | null;
+  active: boolean;
 };
 
-/* =========================================================
-   CLUBS (hårdkodade tills vidare)
-========================================================= */
-const CLUBS: Club[] = [
-  {
-    id: "fuddo-barslov",
-    name: "Fudokan Shutokan Bårslöv",
-    logo: "/clubs/FudokanBarslov.png",
-  },
-  {
-    id: "fuddo-solna",
-    name: "Fudokan Shutokan Solna",
-    logo: "/clubs/FudokanSolna.png",
-  },
-  {
-    id: "bushido",
-    name: "Bushido Karateklubb",
-    logo: "/main.png",
-  },
-];
+const STORAGE_SELECTED_CLUB_ID_KEY = "selectedClubId";
 
 /* =========================================================
    PAGE COMPONENT
@@ -47,8 +30,12 @@ const CLUBS: Club[] = [
 export default function HomePage() {
   const router = useRouter();
 
-  /* ---------- Klubb ---------- */
-  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  /* ---------- Klubbdata från DB ---------- */
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [clubsLoading, setClubsLoading] = useState(true);
+
+  /* ---------- Vald klubb ---------- */
+  const [selectedClubId, setSelectedClubId] = useState<string>("");
 
   /* ---------- Admin-session ---------- */
   const [session, setSession] = useState<AdminSession | null>(null);
@@ -61,7 +48,21 @@ export default function HomePage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
-  /* ---------- Hämta session (körs EN gång) ---------- */
+  /* ---------- Härledda värden ---------- */
+  const selectedClub = useMemo(() => {
+    if (!selectedClubId) return null;
+    return clubs.find((c) => c.id === selectedClubId) ?? null;
+  }, [clubs, selectedClubId]);
+
+  const isLoggedIn =
+    session?.authenticated === true &&
+    (session.role === "admin" || session.role === "superadmin");
+
+  const currentMainLogo = selectedClub?.logo_url ?? "/main.png";
+
+  /* =========================================================
+     LOAD: session
+  ========================================================= */
   useEffect(() => {
     let cancelled = false;
 
@@ -88,14 +89,67 @@ export default function HomePage() {
     };
   }, []);
 
-  /* ---------- Härledda värden ---------- */
-  const currentMainLogo = selectedClub?.logo ?? "/main.png";
+  /* =========================================================
+     LOAD: clubs (aktiva)
+  ========================================================= */
+  useEffect(() => {
+    let cancelled = false;
 
-  const isLoggedIn =
-    session?.authenticated === true &&
-    (session.role === "admin" || session.role === "superadmin");
+    const loadClubs = async () => {
+      try {
+        setClubsLoading(true);
+        const res = await fetch("/api/clubs", { cache: "no-store" });
+        const json = await res.json().catch(() => null);
 
-  /* ---------- Hantera login ---------- */
+        if (!res.ok) {
+          console.error("Kunde inte hämta klubbar:", res.status, json);
+          if (!cancelled) setClubs([]);
+          return;
+        }
+
+        if (!json || !Array.isArray(json.clubs)) {
+          console.error("Oväntat svar från /api/clubs:", json);
+          if (!cancelled) setClubs([]);
+          return;
+        }
+
+        if (!cancelled) setClubs(json.clubs as Club[]);
+      } catch (e) {
+        console.error("Fel vid hämtning av klubbar:", e);
+        if (!cancelled) setClubs([]);
+      } finally {
+        if (!cancelled) setClubsLoading(false);
+      }
+    };
+
+    loadClubs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* =========================================================
+     När vi är inloggade + har klubbar: återställ klubbval från localStorage
+     (endast när inloggad)
+  ========================================================= */
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (clubsLoading) return;
+    if (!clubs || clubs.length === 0) return;
+
+    const stored = localStorage.getItem(STORAGE_SELECTED_CLUB_ID_KEY) ?? "";
+    if (!stored) return;
+
+    const exists = clubs.some((c) => c.id === stored);
+    if (exists) {
+      setSelectedClubId(stored);
+    }
+  }, [isLoggedIn, clubsLoading, clubs]);
+
+  /* =========================================================
+     LOGIN
+  ========================================================= */
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError(null);
@@ -140,17 +194,22 @@ export default function HomePage() {
     }
   }
 
-  /* ---------- Hantera logout ---------- */
+  /* =========================================================
+     LOGOUT (rensa även sparad klubb)
+  ========================================================= */
   async function handleLogout() {
     try {
-      const res = await fetch("/api/admin/logout", {
-        method: "POST",
-      });
+      const res = await fetch("/api/admin/logout", { method: "POST" });
       console.log("logout status", res.status);
     } catch (err) {
       console.error("Kunde inte logga ut:", err);
     } finally {
+      // Rensa session
       setSession({ authenticated: false });
+
+      // Rensa klubbval så användaren måste välja igen nästa gång
+      localStorage.removeItem(STORAGE_SELECTED_CLUB_ID_KEY);
+      setSelectedClubId("");
     }
   }
 
@@ -165,7 +224,7 @@ export default function HomePage() {
 
   /* =========================================================
      RENDER
-  ========================================================== */
+  ========================================================= */
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-black via-[#220011] to-black text-white">
       {/* Bakgrundslogga */}
@@ -201,16 +260,25 @@ export default function HomePage() {
           <label className="mb-2 block text-xs font-semibold text-gray-200 sm:text-sm">
             Välj klubb
           </label>
+
           <select
-            className="w-full rounded-md border border-gray-600 bg-black/80 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
-            value={selectedClub?.id ?? ""}
+            className="w-full rounded-md border border-gray-600 bg-black/80 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none disabled:opacity-60"
+            value={selectedClubId}
+            disabled={clubsLoading || clubs.length === 0}
             onChange={(e) => {
-              const club = CLUBS.find((c) => c.id === e.target.value) || null;
-              setSelectedClub(club);
-            }}
+  const clubId = e.target.value;
+  setSelectedClubId(clubId);
+
+  // Spara alltid klubbvalet
+  if (clubId) localStorage.setItem(STORAGE_SELECTED_CLUB_ID_KEY, clubId);
+  else localStorage.removeItem(STORAGE_SELECTED_CLUB_ID_KEY);
+}}
           >
-            <option value="">— Välj klubb —</option>
-            {CLUBS.map((club) => (
+            <option value="">
+              {clubsLoading ? "Laddar klubbar..." : "— Välj klubb —"}
+            </option>
+
+            {clubs.map((club) => (
               <option key={club.id} value={club.id}>
                 {club.name}
               </option>
@@ -218,24 +286,21 @@ export default function HomePage() {
           </select>
         </div>
 
-       {/* Login / Logga ut -knapp */}
-<button
-  type="button"
-  className="w-full rounded-md bg-blue-600 px-4 py-2 text-center text-sm font-semibold transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-600"
-  disabled={!selectedClub && !isLoggedIn}
-  onClick={() => {
-    if (isLoggedIn) {
-      handleLogout();
-    } else {
-      setShowLogin(true);
-    }
-  }}
->
-  {isLoggedIn ? "Logga ut" : "Login"}
-</button>
+        {/* Login / Logga ut -knapp */}
+        <button
+          type="button"
+          className="w-full rounded-md bg-blue-600 px-4 py-2 text-center text-sm font-semibold transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-600"
+          disabled={!selectedClubId && !isLoggedIn}
+          onClick={() => {
+            if (isLoggedIn) handleLogout();
+            else setShowLogin(true);
+          }}
+        >
+          {isLoggedIn ? "Logga ut" : "Login"}
+        </button>
 
         {/* Knappar som bara syns efter login OCH klubb vald */}
-        {isLoggedIn && selectedClub && (
+        {isLoggedIn && selectedClubId && (
           <div className="flex w-full flex-col gap-3">
             <button
               type="button"
@@ -245,13 +310,7 @@ export default function HomePage() {
               Klubbmedlemmar
             </button>
 
-            <button
-              type="button"
-              className="w-full rounded-md bg-purple-600 px-4 py-2 text-center text-sm font-semibold transition hover:bg-purple-700"
-              onClick={() => router.push("/schema")}
-            >
-              Träningsschema
-            </button>
+            {/* Träningsschema-knappen borttagen enligt önskemål */}
 
             <button
               type="button"
@@ -270,6 +329,11 @@ export default function HomePage() {
             ? `Inloggad som ${session?.name ?? "Okänd"}`
             : "Ej inloggad"}
         </p>
+
+        <p className="text-[11px] text-gray-500 sm:text-xs">
+  debug: savedClubId={typeof window !== "undefined" ? localStorage.getItem("selectedClubId") : ""}
+</p>
+
       </div>
 
       {/* =====================================================

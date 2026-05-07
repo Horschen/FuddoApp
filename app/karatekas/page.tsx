@@ -96,7 +96,6 @@ type Member = {
 /* =========================================================
    CONSTANTS
 ========================================================= */
-const CLUB_ID = "112e386e-5e6b-4657-956e-f202f5558158";
 
 const beltOrder: BeltRank[] = [
   "9_kyu",
@@ -130,12 +129,12 @@ function getBeltColor(belt: BeltRank): string {
       return "bg-red-900/60";
 
     case "8_kyu":
-      // Ljusare, ren gul
-      return "bg-yellow-400/30";
+    // Mycket gul
+    return "bg-yellow-500/60";
 
     case "7_kyu":
-      // Klarare, lite kallare orange
-      return "bg-orange-500/30";
+    // Mer orange (inte brun)
+    return "bg-orange-500/60"
 
     case "6_kyu":
       // Grönt
@@ -367,13 +366,26 @@ function LargeProgressCircle({ progress }: { progress: number }) {
 /* =========================================================
    SUPABASE: FETCH/UPDATE/INSERT
 ========================================================= */
-async function fetchMembersFromSupabase(): Promise<Member[]> {
+async function fetchMembersFromSupabase(clubId: string): Promise<Member[]> {
+  // Skydd: om clubId inte är en UUID, gör inget
+  const isUuid =
+    typeof clubId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      clubId
+    );
+
+  if (!isUuid) {
+    console.warn("fetchMembersFromSupabase: ogiltigt clubId:", clubId);
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("members")
     .select(
       `
       id,
       user_id,
+      club_id,
       first_name,
       last_name,
       age,
@@ -398,7 +410,8 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
       is_public,
       role
     `
-    );
+    )
+    .eq("club_id", clubId);
 
   if (error) {
     console.error("Fel vid hämtning av medlemmar:", error.message, error);
@@ -458,13 +471,25 @@ async function fetchMembersFromSupabase(): Promise<Member[]> {
   });
 }
 
-async function fetchPhysicalRequirementsFromSupabase(): Promise<
-  Record<string, PhysicalRequirement>
-> {
+async function fetchPhysicalRequirementsFromSupabase(
+  clubId: string
+): Promise<Record<string, PhysicalRequirement>> {
+  // Skydd: om clubId inte är en UUID, gör inget
+  const isUuid =
+    typeof clubId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      clubId
+    );
+
+  if (!isUuid) {
+    console.warn("fetchPhysicalRequirementsFromSupabase: ogiltigt clubId:", clubId);
+    return {};
+  }
+
   const { data, error } = await supabase
     .from("physical_requirements")
     .select("belt_rank, pushups, situps, squats")
-    .eq("club_id", CLUB_ID);
+    .eq("club_id", clubId);
 
   if (error) {
     console.error("Fel vid hämtning av fysiska krav:", error);
@@ -484,8 +509,6 @@ async function fetchPhysicalRequirementsFromSupabase(): Promise<
   return map;
 }
 
-// Denna funktion används inte längre direkt i frontend när vi POSTar till API-route.
-// Den behövs dock om någon annan del av koden använder den direkt. Behåller den för säkerhets skull.
 async function updateMemberInSupabase(member: Member) {
   const { data, error } = await supabase
     .from("members")
@@ -532,7 +555,7 @@ async function insertMemberInSupabase(
   const { data, error } = await supabase
     .from("members")
     .insert({
-      club_id: CLUB_ID,
+      club_id: selectedClubId, // <-- OBS: detta kräver att selectedClubId finns i komponenten
       first_name: member.firstName,
       last_name: member.lastName,
       age: member.age,
@@ -561,6 +584,7 @@ async function insertMemberInSupabase(
       `
       id,
       user_id,
+      club_id,
       first_name,
       last_name,
       age,
@@ -658,8 +682,70 @@ async function fetchShareTokenForMember(
 /* =========================================================
    PAGE COMPONENT
 ========================================================= */
+function isDanRank(belt: BeltRank): boolean {
+  return belt.includes("_dan");
+}
+
+function kyuGroupLabel(belt: BeltRank): string {
+  const n = belt.split("_")[0];
+  return `${n} kyu`;
+}
+
+function danGroupLabel(belt: BeltRank): string {
+  const n = belt.split("_")[0];
+  return `${n} dan`;
+}
+
+function buildBeltGroups(members: Member[]) {
+  const total = members.length;
+
+  const kyuCounts: Record<string, number> = {};
+  const danCounts: Record<string, number> = {};
+
+  for (const m of members) {
+    if (m.beltRank.includes("_kyu")) {
+      const label = kyuGroupLabel(m.beltRank);
+      kyuCounts[label] = (kyuCounts[label] ?? 0) + 1;
+    } else if (isDanRank(m.beltRank)) {
+      const label = danGroupLabel(m.beltRank);
+      danCounts[label] = (danCounts[label] ?? 0) + 1;
+    }
+  }
+
+  const kyuOrder = beltOrder
+    .filter((b) => b.includes("_kyu"))
+    .map(kyuGroupLabel);
+  const danOrder = beltOrder
+    .filter((b) => b.includes("_dan"))
+    .map(danGroupLabel);
+
+  const kyuList = kyuOrder
+    .filter((k) => kyuCounts[k])
+    .map((k) => ({ label: k, count: kyuCounts[k] }));
+
+  const danList = danOrder
+    .filter((d) => danCounts[d])
+    .map((d) => ({ label: d, count: danCounts[d] }));
+
+  return { total, kyuList, danList };
+}
+
 export default function KaratekasPage() {
+  const STORAGE_SELECTED_CLUB_ID_KEY = "selectedClubId";
+
   const router = useRouter();
+
+  const [selectedClubId, setSelectedClubId] = useState<string>("");
+  const [clubLoading, setClubLoading] = useState(true);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_SELECTED_CLUB_ID_KEY);
+    const cleaned =
+      raw && raw !== "undefined" && raw !== "null" ? raw : "";
+
+    setSelectedClubId(cleaned);
+    setClubLoading(false);
+  }, []);
 
   /* ---------- ADMIN SESSION ROLE ---------- */
   const [sessionRole, setSessionRole] = useState<
@@ -710,16 +796,36 @@ export default function KaratekasPage() {
   const [newBeltRank, setNewBeltRank] = useState<BeltRank>("9_kyu");
 
   /* ---------- LOAD DATA ---------- */
-  useEffect(() => {
-    (async () => {
-      const [m, req] = await Promise.all([
-        fetchMembersFromSupabase(),
-        fetchPhysicalRequirementsFromSupabase(),
-      ]);
-      setMembers(m);
-      setPhysicalReqMap(req);
-    })();
-  }, []);
+useEffect(() => {
+  const raw = localStorage.getItem(STORAGE_SELECTED_CLUB_ID_KEY);
+
+  const cleaned =
+    raw && raw !== "undefined" && raw !== "null" ? raw : "";
+
+  setSelectedClubId(cleaned);
+  setClubLoading(false);
+}, []);
+
+useEffect(() => {
+  if (clubLoading) return;
+
+  const isUuid =
+    typeof selectedClubId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      selectedClubId
+    );
+
+  if (!isUuid) return;
+
+  (async () => {
+    const [m, req] = await Promise.all([
+      fetchMembersFromSupabase(selectedClubId),
+      fetchPhysicalRequirementsFromSupabase(selectedClubId),
+    ]);
+    setMembers(m);
+    setPhysicalReqMap(req);
+  })();
+}, [clubLoading, selectedClubId]);
 
   // Hämta admin-roll från /api/admin/me
   useEffect(() => {
@@ -775,6 +881,10 @@ export default function KaratekasPage() {
       ? sortedMembers
       : sortedMembers.filter((m) => m.isPublic);
   }, [sessionRole, sortedMembers]);
+
+  const beltSummary = useMemo(() => {
+  return buildBeltGroups(visibleMembers);
+}, [visibleMembers]);
 
 
   /* =========================================================
@@ -867,6 +977,37 @@ export default function KaratekasPage() {
   /* =========================================================
      RENDER
   ========================================================= */
+  if (clubLoading) {
+    return (
+      <main className="min-h-screen bg-black/90 text-white flex items-center justify-center">
+        Laddar klubb...
+      </main>
+    );
+  }
+
+  // Om clubId inte är en riktig UUID: behandla som "ingen klubb vald"
+  const selectedClubIdIsUuid =
+    typeof selectedClubId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      selectedClubId
+    );
+
+  if (!selectedClubIdIsUuid) {
+    return (
+      <main className="min-h-screen bg-black/90 text-white flex items-center justify-center px-6 text-center">
+        <div className="space-y-3">
+          <p>Ingen klubb vald.</p>
+          <button
+            className="rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold hover:bg-gray-600"
+            onClick={() => router.push("/")}
+          >
+            Gå tillbaka och välj klubb
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-black/90 text-white flex flex-col">
       {/* =====================================================
@@ -885,7 +1026,6 @@ export default function KaratekasPage() {
           </div>
         </div>
       )}
-
 
       {/* =====================================================
           HEADER
@@ -921,121 +1061,137 @@ export default function KaratekasPage() {
       {/* =====================================================
           MEMBER LIST
       ====================================================== */}
-      <section className="flex flex-col items-center px-4 pb-8 pt-4">
-        <h1 className="mb-2 text-xl font-bold">Klubbmedlemmar</h1>
-        <p className="mb-4 text-sm text-gray-300 text-center">
-          Data hämtas från Supabase.
-        </p>
+<section className="flex flex-col items-center px-4 pb-8 pt-4">
+  <h1 className="mb-2 text-xl font-bold">Klubbmedlemmar</h1>
+  <p className="mb-4 text-sm text-gray-300 text-center">
+    Data hämtas från Supabase.
+  </p>
 
-        <div className="w-full max-w-md space-y-3">
-          {visibleMembers.length === 0 && (
-            <div className="rounded-lg border border-white/10 bg-black/40 p-4 text-center text-sm text-gray-300">
-              Inga medlemmar att visa.
-            </div>
-          )}
+  <div className="mb-4 w-full max-w-md rounded-lg border border-white/10 bg-black/40 p-3 text-[11px] text-gray-200">
+    <div className="text-center font-semibold text-gray-100 mb-2">
+      Totalt antal medlemmar: {beltSummary.total}
+    </div>
 
-          {visibleMembers.map((member) => {
-            const fullName = `${member.firstName} ${member.lastName}`;
-            const shortName = `${member.firstName} ${member.lastName.charAt(
-              0
-            )}.`;
-            const displayName = sessionRole === "member" ? shortName : fullName;
-            const rowColor = getBeltColor(member.beltRank);
-            const req = physicalReqMap[member.nextBeltRank];
-
-            return (
-              <div
-                key={member.id}
-                className={`flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2 ${rowColor}`}
-              >
-                <div className="flex-shrink-0">
-                  <Image
-                    src={member.avatarUrl}
-                    alt={fullName}
-                    width={40}
-                    height={40}
-                    className="h-10 w-10 rounded-full object-cover"
-                  />
-                </div>
-
-                <div className="flex flex-1 flex-col text-xs">
-                  <span className="font-semibold text-white">{displayName}</span>
-                  <span className="text-gray-300">
-                    Ålder: {getDisplayAge(member)} år
-                  </span>
-                  <span className="text-gray-300">
-                    Nuvarande: {getBeltLabel(member.beltRank)}
-                  </span>
-                  <span className="text-gray-400">
-                    Nästa: {getBeltLabel(member.nextBeltRank)}
-                  </span>
-
-                  {member.physicalEnabled && (
-                    <div className="mt-1">
-                      {req ? (
-                        <span className="block text-[10px] text-gray-200">
-                          Önskvärd fyskrav till nästa bälte:{" "}
-                          <span className="font-semibold">{req.pushups}</span>{" "}
-                          armhävningar,{" "}
-                          <span className="font-semibold">{req.situps}</span>{" "}
-                          situps,{" "}
-                          <span className="font-semibold">{req.squats}</span>{" "}
-                          squats
-                        </span>
-                      ) : (
-                        <span className="block text-[10px] text-gray-400">
-                          (Saknar fyskrav för {member.nextBeltRank})
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col items-end gap-1">
-                  <ProgressCircle progress={member.progress} />
-
-                  <div className="flex items-center gap-1">
-                    {(sessionRole === "admin" || sessionRole === "superadmin") && (
-                      <button
-                        type="button"
-                        className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
-                        onClick={() =>
-                          alert("Här kommer snabb närvaroregistrering senare.")
-                        }
-                      >
-                        Närvaro
-                      </button>
-                    )}
-
-                    {(sessionRole === "admin" || sessionRole === "superadmin") && (
-                      <button
-                        type="button"
-                        className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
-                          member.isPublic
-                            ? "bg-emerald-800 text-emerald-100"
-                            : "bg-red-800 text-red-100"
-                        }`}
-                        onClick={() => openProfile(member)}
-                        title="Ändra synlighet inne i profilen"
-                      >
-                        {member.isPublic ? "Publik" : "Ej publik"}
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="rounded-md bg-gray-800 px-2 py-1 text-[10px] font-semibold hover:bg-gray-700"
-                    onClick={() => openProfile(member)}
-                  >
-                    Profil
-                  </button>
-                </div>
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <div className="font-semibold text-gray-100 mb-1">Kyu</div>
+        {beltSummary.kyuList.length === 0 ? (
+          <div className="text-gray-400">Inga kyu ännu.</div>
+        ) : (
+          <div className="space-y-0.5">
+            {beltSummary.kyuList.map((x) => (
+              <div key={x.label} className="flex justify-between">
+                <span className="text-gray-300">{x.label}</span>
+                <span className="font-semibold">{x.count}</span>
               </div>
-            );
-          })}
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="font-semibold text-gray-100 mb-1">Dan</div>
+        {beltSummary.danList.length === 0 ? (
+          <div className="text-gray-400">Inga dan ännu.</div>
+        ) : (
+          <div className="space-y-0.5">
+            {beltSummary.danList.map((x) => (
+              <div key={x.label} className="flex justify-between">
+                <span className="text-gray-300">{x.label}</span>
+                <span className="font-semibold">{x.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+
+  <div className="w-full max-w-md space-y-3">
+    {visibleMembers.length === 0 && (
+      <div className="rounded-lg border border-white/10 bg-black/40 p-4 text-center text-sm text-gray-300">
+        Inga medlemmar att visa.
+      </div>
+    )}
+
+    {visibleMembers.map((member) => {
+      const fullName = `${member.firstName} ${member.lastName}`;
+      const shortName = `${member.firstName} ${member.lastName.charAt(0)}.`;
+      const displayName = sessionRole === "member" ? shortName : fullName;
+      const rowColor = getBeltColor(member.beltRank);
+      const req = physicalReqMap[member.nextBeltRank];
+
+      return (
+        <div
+          key={member.id}
+          className={`flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2 ${rowColor}`}
+        >
+          <div className="flex-shrink-0">
+            <Image
+              src={member.avatarUrl}
+              alt={fullName}
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full object-cover"
+            />
+          </div>
+
+          <div className="flex flex-1 flex-col text-xs">
+            <span className="font-semibold text-white">{displayName}</span>
+            <span className="text-gray-300">Ålder: {getDisplayAge(member)} år</span>
+            <span className="text-gray-300">
+              Nuvarande: {getBeltLabel(member.beltRank)}
+            </span>
+            <span className="text-gray-400">
+              Nästa: {getBeltLabel(member.nextBeltRank)}
+            </span>
+
+            {member.physicalEnabled && (
+  <div className="mt-1">
+    {req ? (
+      <span className="block text-[10px] text-gray-200">
+        Önskvärd fyskrav till nästa bälte:{" "}
+        <span className="font-semibold">{req.pushups}</span> armhävningar,{" "}
+        <span className="font-semibold">{req.situps}</span> situps,{" "}
+        <span className="font-semibold">{req.squats}</span> squats
+      </span>
+    ) : (
+      <span className="block text-[10px] text-gray-400">
+        (Saknar fyskrav för {member.nextBeltRank})
+      </span>
+    )}
+  </div>
+)}
+</div>
+
+<div className="flex flex-col items-end gap-2">
+  <ProgressCircle progress={member.progress} />
+
+  {/* Profil-knappen först (grå) */}
+  <button
+    type="button"
+    className="rounded-md bg-gray-800 px-3 py-2 text-[12px] font-semibold text-gray-100 hover:bg-gray-700"
+    onClick={() => openProfile(member)}
+  >
+    Profil
+  </button>
+
+  {/* Närvaro-knappen sen (grå) */}
+  {(sessionRole === "admin" || sessionRole === "superadmin") && (
+    <button
+      type="button"
+      className="rounded-md bg-gray-800 px-3 py-2 text-[12px] font-semibold text-gray-100 hover:bg-gray-700"
+      onClick={() => alert("Här kommer snabb närvaroregistrering senare.")}
+    >
+      Närvaro
+    </button>
+  )}
+</div>
         </div>
-      </section>
+      );
+    })}
+  </div>
+</section>
 
       {/* =====================================================
           PROFILE POPUP (sticky header/footer + scroll middle)
@@ -1225,88 +1381,7 @@ export default function KaratekasPage() {
                 </div>
               )}
 
-              {/* Synlighet */}
-              {(sessionRole === "admin" || sessionRole === "superadmin") && (
-                <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-gray-200">
-                    Synlighet i medlemslistan
-                  </p>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs text-gray-300">
-                      Status:{" "}
-                      <span className="font-semibold">
-                        {selectedMember.isPublic ? "Publik" : "Inte publik"}
-                      </span>
-                    </span>
-
-                    <button
-                      type="button"
-                      className={`rounded-md px-3 py-1 text-xs font-semibold ${
-                        selectedMember.isPublic
-                          ? "bg-emerald-700 text-emerald-50 hover:bg-emerald-600"
-                          : "bg-red-700 text-red-50 hover:bg-red-600"
-                      }`}
-                      onClick={async () => {
-                        try {
-                          const updated: Member = {
-                            ...selectedMember,
-                            isPublic: !selectedMember.isPublic,
-                          };
-
-                          // Anropa nya API-routen så att ändringen loggas
-                          const res = await fetch(
-                            "/api/admin/members/update",
-                            {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                              },
-                              body: JSON.stringify(updated),
-                            }
-                          );
-
-                          const json = await res.json().catch(() => null);
-
-                          if (!res.ok) {
-                            throw new Error(
-                              json?.error ?? "Kunde inte uppdatera medlemmen."
-                            );
-                          }
-
-                          const serverMember = json.member as Member;
-
-                          setSelectedMember(serverMember);
-                          setMembers((prev) =>
-                            prev.map((m) =>
-                              m.id === serverMember.id ? serverMember : m
-                            )
-                          );
-
-                          setToast({
-                            type: "success",
-                            text: serverMember.isPublic
-                              ? "Satt till Publik"
-                              : "Satt till Inte publik",
-                          });
-                          setToastVisible(true);
-                          setTimeout(() => setToastVisible(false), 1400);
-                        } catch (err) {
-                          console.error(err);
-                          setToast({
-                            type: "error",
-                            text: "Kunde inte ändra synlighet.",
-                          });
-                          setToastVisible(true);
-                          setTimeout(() => setToastVisible(false), 2000);
-                        }
-                      }}
-                    >
-                      {selectedMember.isPublic ? "Gör Inte publik" : "Gör Publik"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
+              
               {/* Dela profil (komplett, inkl "Delar profil för" + "Öppna länk") */}
               {(sessionRole === "admin" || sessionRole === "superadmin") && (
                 <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
