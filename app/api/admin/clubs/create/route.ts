@@ -16,20 +16,25 @@ function getSupabaseAdmin() {
 
 function getAdminSessionSecret() {
   const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret) throw new Error("ADMIN_SESSION_SECRET saknas i miljövariablerna.");
+  if (!secret) throw new Error("ADMIN_SESSION_SECRET saknas.");
   return new TextEncoder().encode(secret);
 }
 
-async function isSuperAdmin(): Promise<boolean> {
+async function requireSuperAdmin(): Promise<
+  { ok: true } | { ok: false; status: number; error: string }
+> {
   const token = (await cookies()).get("admin_session")?.value;
-  if (!token) return false;
+  if (!token) return { ok: false, status: 401, error: "Ingen admin-session." };
 
   try {
     const secret = getAdminSessionSecret();
     const { payload } = await jwtVerify(token, secret);
-    return payload.role === "superadmin";
+    if (payload.role !== "superadmin") {
+      return { ok: false, status: 403, error: "Endast SuperAdmin." };
+    }
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, status: 401, error: "Ogiltig admin-session." };
   }
 }
 
@@ -46,9 +51,9 @@ function slugify(input: string) {
 
 export async function POST(request: Request) {
   try {
-    const ok = await isSuperAdmin();
-    if (!ok) {
-      return NextResponse.json({ error: "Endast SuperAdmin." }, { status: 403 });
+    const auth = await requireSuperAdmin();
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     const body = await request.json().catch(() => null);
