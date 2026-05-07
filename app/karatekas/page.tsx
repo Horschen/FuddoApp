@@ -903,7 +903,6 @@ useEffect(() => {
     setShareToken(null);
     setEditingAdminPassword("");
 
-
     // Försök hämta befintlig aktiv delningslänk från databasen
     try {
       const existingToken = await fetchShareTokenForMember(member.id);
@@ -928,7 +927,9 @@ useEffect(() => {
     setEditingAdminPassword("");
   }
 
+  // Godkänn gradering: byter bälte, nollställer status, uppdaterar lista + popup
   async function approveGrading(member: Member) {
+    // Räkna fram nya värden lokalt
     const newCurrent = member.nextBeltRank;
     const newNext = getNextBeltRank(newCurrent);
     const newRequired = getRequiredSessionsForNextBelt(newCurrent, newNext);
@@ -940,7 +941,7 @@ useEffect(() => {
       physical: "not_ready",
     };
 
-    const updated: Member = {
+    const updatedLocal: Member = {
       ...member,
       beltRank: newCurrent,
       nextBeltRank: newNext,
@@ -955,11 +956,11 @@ useEffect(() => {
       ),
     };
 
-    // Anropa API-route för att säkerställa loggning
+    // Skicka till API-route (servern loggar och sparar)
     const res = await fetch("/api/admin/members/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updated),
+      body: JSON.stringify(updatedLocal),
     });
 
     const json = await res.json().catch(() => null);
@@ -968,11 +969,78 @@ useEffect(() => {
       throw new Error(json?.error ?? "Kunde inte uppdatera medlemmen.");
     }
 
+    // Detta är medlemmen så som servern faktiskt sparade den
     const serverMember = json.member as Member;
 
-    // Uppdatera state med den server-returerade medlemmen
-    setMembers((prev) => prev.map((m) => (m.id === serverMember.id ? serverMember : m)));
+    // 1) Uppdatera hela members-listan (så färggrupperingen stämmer)
+    setMembers((prev) =>
+      prev.map((m) => (m.id === serverMember.id ? serverMember : m))
+    );
+
+    // 2) Uppdatera selectedMember direkt
     setSelectedMember(serverMember);
+
+    // 3) Synka edit-state (så Nuvarande bälte-fältet, grading etc. visar rätt)
+    setEditingBeltRank(serverMember.beltRank);
+    setEditingGradingStatus(serverMember.gradingStatus);
+    setEditingPhysicalEnabled(serverMember.physicalEnabled);
+    setEditingBirthYmd(serverMember.birthYmd ?? "");
+    setEditingMemberComment(serverMember.memberComment ?? "");
+    setEditingInstructorComment(serverMember.instructorComment ?? "");
+    setEditingVisibility(serverMember.visibility);
+  }
+
+  // Spara ändringar utan att göra ny gradering
+  async function saveMemberChanges(member: Member) {
+    // Bygg uppdaterad medlem utifrån selectedMember + edit-state
+    const updatedLocal: Member = {
+      ...member,
+      birthYmd: editingBirthYmd ?? member.birthYmd,
+      gradingStatus: editingGradingStatus ?? member.gradingStatus,
+      memberComment: editingMemberComment,
+      instructorComment: editingInstructorComment,
+      visibility: editingVisibility ?? member.visibility,
+      physicalEnabled: editingPhysicalEnabled,
+      // Progress räknas om utifrån graderingsstatus + närvaro
+      progress: calculateProgress(
+        editingGradingStatus ?? member.gradingStatus,
+        member.attendedSessions,
+        member.requiredSessions,
+        editingPhysicalEnabled
+      ),
+      // OBS: vi ändrar INTE beltRank/nextBeltRank här
+    };
+
+    const res = await fetch("/api/admin/members/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedLocal),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(json?.error ?? "Kunde inte spara ändringar.");
+    }
+
+    const serverMember = json.member as Member;
+
+    // 1) Uppdatera members-listan (så lista/färger stämmer)
+    setMembers((prev) =>
+      prev.map((m) => (m.id === serverMember.id ? serverMember : m))
+    );
+
+    // 2) Uppdatera selectedMember
+    setSelectedMember(serverMember);
+
+    // 3) Synka edit-state
+    setEditingBeltRank(serverMember.beltRank);
+    setEditingGradingStatus(serverMember.gradingStatus);
+    setEditingPhysicalEnabled(serverMember.physicalEnabled);
+    setEditingBirthYmd(serverMember.birthYmd ?? "");
+    setEditingMemberComment(serverMember.memberComment ?? "");
+    setEditingInstructorComment(serverMember.instructorComment ?? "");
+    setEditingVisibility(serverMember.visibility);
   }
 
   /* =========================================================
@@ -2067,64 +2135,52 @@ useEffect(() => {
 )}
             </div>
 
-            {/* FOOTER */}
-            <div className="flex justify-end gap-2 px-4 py-3 border-t border-white/10 bg-neutral-950">
-              {sessionRole !== "member" && (
-                <button
-                  type="button"
-                  className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
-                  onClick={async () => {
-  try {
-    const beforeId = selectedMember.id;
+             {/* FOOTER */}
+        <div className="flex justify-end gap-2 px-4 py-3 border-t border-white/10 bg-neutral-950">
+          {(sessionRole === "admin" || sessionRole === "superadmin") && (
+            <button
+              type="button"
+              className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
+              onClick={async () => {
+                try {
+                  if (!selectedMember) {
+                    setToast({ type: "error", text: "Inget medlem vald." });
+                    setToastVisible(true);
+                    setTimeout(() => setToastVisible(false), 2000);
+                    return;
+                  }
 
-    await approveGrading(selectedMember);
+                  await saveMemberChanges(selectedMember);
 
-    // Efter approveGrading har vi uppdaterat selectedMember i state via serverMember.
-    // Men vi behöver även synka edit-state så UI-fälten visar rätt direkt.
-    setSelectedMember((current) => {
-      if (!current || current.id !== beforeId) return current;
+                  setToast({
+                    type: "success",
+                    text: "Ändringar sparade!",
+                  });
+                  setToastVisible(true);
+                  setTimeout(() => setToastVisible(false), 1400);
+                } catch (err) {
+                  console.error(err);
+                  setToast({
+                    type: "error",
+                    text: "Kunde inte spara ändringar.",
+                  });
+                  setToastVisible(true);
+                  setTimeout(() => setToastVisible(false), 2000);
+                }
+              }}
+            >
+              Spara ändringar
+            </button>
+          )}
 
-      // Synka edit-state baserat på nya member-värden
-      setEditingBeltRank(current.beltRank);
-      setEditingGradingStatus(current.gradingStatus);
-      setEditingPhysicalEnabled(current.physicalEnabled);
-      setEditingBirthYmd(current.birthYmd ?? "");
-      setEditingMemberComment(current.memberComment ?? "");
-      setEditingInstructorComment(current.instructorComment ?? "");
-      setEditingVisibility(current.visibility);
-
-      return current;
-    });
-
-    setToast({
-      type: "success",
-      text: "Gradering godkänd!",
-    });
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 1400);
-  } catch (err) {
-    console.error(err);
-    setToast({
-      type: "error",
-      text: "Kunde inte godkänna.",
-    });
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 2000);
-  }
-}}
-                >
-                  Spara ändringar
-                </button>
-              )}
-
-              <button
-                type="button"
-                className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
-                onClick={closeProfile}
-              >
-                Stäng
-              </button>
-            </div>
+          <button
+            type="button"
+            className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
+            onClick={closeProfile}
+          >
+            Stäng
+          </button>
+        </div>
           </div>
         </div>
       )}
