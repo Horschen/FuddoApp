@@ -1193,21 +1193,23 @@ useEffect(() => {
       return (
         <div
           key={member.id}
-          className={`flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2 ${rowColor}`}
+          className={`flex items-center gap-4 rounded-lg border border-white/10 px-3 py-3 ${rowColor}`}
         >
           <div className="flex-shrink-0">
             <Image
               src={member.avatarUrl}
               alt={fullName}
-              width={40}
-              height={40}
-              className="h-10 w-10 rounded-full object-cover"
+              width={64}
+              height={64}
+              className="h-16 w-16 rounded-full object-cover ring-1 ring-white/20"
             />
           </div>
 
           <div className="flex flex-1 flex-col text-xs">
             <span className="font-semibold text-white">{displayName}</span>
-            <span className="text-gray-300">Ålder: {getDisplayAge(member)} år</span>
+            <span className="text-gray-300">
+              Ålder: {getDisplayAge(member)} år
+            </span>
             <span className="text-gray-300">
               Nuvarande: {getBeltLabel(member.beltRank)}
             </span>
@@ -1216,46 +1218,47 @@ useEffect(() => {
             </span>
 
             {member.physicalEnabled && (
-  <div className="mt-1">
-    {req ? (
-      <span className="block text-[10px] text-gray-200">
-        Önskvärd fyskrav till nästa bälte:{" "}
-        <span className="font-semibold">{req.pushups}</span> armhävningar,{" "}
-        <span className="font-semibold">{req.situps}</span> situps,{" "}
-        <span className="font-semibold">{req.squats}</span> squats
-      </span>
-    ) : (
-      <span className="block text-[10px] text-gray-400">
-        (Saknar fyskrav för {member.nextBeltRank})
-      </span>
-    )}
-  </div>
-)}
-</div>
+              <div className="mt-1">
+                {req ? (
+                  <span className="block text-[10px] text-gray-200">
+                    Önskvärd fyskrav till nästa bälte:{" "}
+                    <span className="font-semibold">{req.pushups}</span>{" "}
+                    armhävningar,{" "}
+                    <span className="font-semibold">{req.situps}</span> situps,{" "}
+                    <span className="font-semibold">{req.squats}</span> squats
+                  </span>
+                ) : (
+                  <span className="block text-[10px] text-gray-400">
+                    (Saknar fyskrav för {member.nextBeltRank})
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
 
-<div className="flex flex-col items-end gap-2">
-  <ProgressCircle progress={member.progress} />
+          <div className="flex flex-col items-end gap-2">
+            <ProgressCircle progress={member.progress} />
 
-  {/* Profil-knappen först (grå) */}
-  <button
-    type="button"
-    className="rounded-md bg-gray-800 px-3 py-2 text-[12px] font-semibold text-gray-100 hover:bg-gray-700"
-    onClick={() => openProfile(member)}
-  >
-    Profil
-  </button>
+            <button
+              type="button"
+              className="rounded-md bg-gray-800 px-3 py-2 text-[12px] font-semibold text-gray-100 hover:bg-gray-700"
+              onClick={() => openProfile(member)}
+            >
+              Profil
+            </button>
 
-  {/* Närvaro-knappen sen (grå) */}
-  {(sessionRole === "admin" || sessionRole === "superadmin") && (
-    <button
-      type="button"
-      className="rounded-md bg-gray-800 px-3 py-2 text-[12px] font-semibold text-gray-100 hover:bg-gray-700"
-      onClick={() => alert("Här kommer snabb närvaroregistrering senare.")}
-    >
-      Närvaro
-    </button>
-  )}
-</div>
+            {(sessionRole === "admin" || sessionRole === "superadmin") && (
+              <button
+                type="button"
+                className="rounded-md bg-gray-800 px-3 py-2 text-[12px] font-semibold text-gray-100 hover:bg-gray-700"
+                onClick={() =>
+                  alert("Här kommer snabb närvaroregistrering senare.")
+                }
+              >
+                Närvaro
+              </button>
+            )}
+          </div>
         </div>
       );
     })}
@@ -1267,22 +1270,22 @@ useEffect(() => {
       ====================================================== */}
       {selectedMember && editingGradingStatus && editingVisibility && (
         <div className="fixed inset-0 z-50 bg-black/70 px-4 py-6">
-          <div className="mx-auto w-full max-w-md h-[90dvh] rounded-xl bg-neutral-950 shadow-xl border border-white/10 overflow-hidden grid grid-rows-[auto,1fr,auto]">
+          <div className="mx-auto flex h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-white/10 bg-neutral-950 shadow-xl">
             {/* HEADER */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-neutral-950">
+            <div className="flex items-center justify-between border-b border-white/10 bg-neutral-950 px-4 py-3">
               <h2 className="text-lg font-bold">
-  {sessionRole !== "member" && (
-    <span className="text-gray-300">
-      #{selectedMember.userId || "------"}{" "}
-    </span>
-  )}
-  <span>
-    {selectedMember.firstName}{" "}
-    {sessionRole === "member"
-      ? `${selectedMember.lastName.charAt(0)}.`
-      : selectedMember.lastName}
-  </span>
-</h2>
+                {sessionRole !== "member" && (
+                  <span className="text-gray-300">
+                    #{selectedMember.userId || "------"}{" "}
+                  </span>
+                )}
+                <span>
+                  {selectedMember.firstName}{" "}
+                  {sessionRole === "member"
+                    ? `${selectedMember.lastName.charAt(0)}.`
+                    : selectedMember.lastName}
+                </span>
+              </h2>
 
               <button
                 type="button"
@@ -1294,147 +1297,174 @@ useEffect(() => {
             </div>
 
             {/* SCROLL CONTENT */}
-            <div className="overflow-y-auto px-4 py-3">
-              
-                   {/* Bild + progress */}
-              <div className="mb-4 flex items-center gap-4">
-                {/* Profilbild till vänster */}
-                <Image
-                  src={selectedMember.avatarUrl}
-                  alt={selectedMember.firstName}
-                  width={132}
-                  height={132}
-                  className="h-[5.5rem] w-[5.5rem] rounded-full object-cover"
-                />
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+             
+              {/* Bild + progress (utan guidetext) */}
+              <div className="mb-4 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  {/* Stor profilbild */}
+                  <Image
+                    src={selectedMember.avatarUrl}
+                    alt={selectedMember.firstName}
+                    width={132}
+                    height={132}
+                    className="h-[10.25rem] w-[10.25rem] rounded-full object-cover"
+                  />
 
-                {/* Tårta + förklaring till höger om bilden */}
-                <div className="flex items-center gap-3">
-                  {/* Tårtbit i mitten-kolumnen */}
+                  {/* Tårta under bilden */}
                   <LargeProgressCircle progress={selectedMember.progress} />
-
-                  {/* Förklarande text till höger om tårtan */}
-                  <div className="flex flex-col justify-center text-[10px] text-gray-300 max-w-[11rem]">
-                    <span className="font-semibold text-[11px] text-gray-100 mb-1">
-                      Detta betyder progress‑cirkeln:
-                    </span>
-
-                    {/* En rad per färg (med dina ALT+255-mellanrum) */}
-                    <span className="block">
-                      Röd       - Ej redo för gradering
-                    </span>
-                    <span className="block">
-                      Orange  - Delvis redo för gradering
-                    </span>
-                    <span className="block mb-2">
-                      Grön      - Redo för gradering
-                    </span>
-
-                    <span className="font-semibold text-[11px] text-gray-100 mt-1">
-                      Vad ingår i bedömningen?
-                    </span>
-                    <span className="block">
-                      - Antal pass: {selectedMember.attendedSessions}/
-                      {selectedMember.requiredSessions} pass
-                    </span>
-                    <span className="block">
-                      - Godkänd Kihon, Kata och Kumite
-                    </span>
-                    <span className="block">
-                      - Ev. fysiskt krav om det är aktiverat
-                    </span>
-                  </div>
                 </div>
               </div>
 
-{/* Byt profilbild (endast Admin/SuperAdmin) */}
-{(sessionRole === "admin" || sessionRole === "superadmin") && (
-  <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
-    <p className="mb-2 text-xs font-semibold text-cyan-100">Profilbild</p>
+{/* Fysiska krav – direkt under profilbilds-rutan */}
+              {selectedMember.physicalEnabled && (
+                <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-cyan-100">
+                    Fysiska krav inför {getBeltLabel(selectedMember.nextBeltRank)}
+                  </p>
 
-    <p className="mb-2 text-[11px] text-gray-400">
-      Ladda upp en ny bild för den här medlemmen. Bilden visas både här och i
-      medlemslistan.
-    </p>
+                  {physicalReqMap[selectedMember.nextBeltRank] ? (
+                    <ul className="space-y-1 text-xs text-gray-200">
+                      <li>
+                        Armhävningar:{" "}
+                        <span className="font-semibold">
+                          {physicalReqMap[selectedMember.nextBeltRank].pushups}
+                        </span>
+                      </li>
+                      <li>
+                        Situps:{" "}
+                        <span className="font-semibold">
+                          {physicalReqMap[selectedMember.nextBeltRank].situps}
+                        </span>
+                      </li>
+                      <li>
+                        Squats:{" "}
+                        <span className="font-semibold">
+                          {physicalReqMap[selectedMember.nextBeltRank].squats}
+                        </span>
+                      </li>
+                    </ul>
+                  ) : (
+                    <p className="text-[11px] text-gray-400">
+                      Saknar fyskrav för detta bälte.
+                    </p>
+                  )}
+                </div>
+              )}
 
-    <input
-      id="avatar-upload-input"
-      type="file"
-      accept="image/*"
-      className="hidden"
-      onChange={async (e) => {
-        const file = e.target.files?.[0];
-        if (!file || !selectedMember) return;
 
-        setAvatarUploadError(null);
-        setUploadingAvatar(true);
-
-        try {
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("memberId", selectedMember.id);
-
-          const res = await fetch("/api/avatar-upload", {
-            method: "POST",
-            body: formData,
-          });
-
-          const json = await res.json().catch(() => null);
-
-          if (!res.ok) {
-            throw new Error(json?.error ?? "Kunde inte ladda upp bild.");
-          }
-
-          const newUrl = json.avatarUrl as string;
-
-          // Uppdatera valt member + listan
-          setSelectedMember((prev) => (prev ? { ...prev, avatarUrl: newUrl } : prev));
-          setMembers((prev) =>
-            prev.map((m) => (m.id === selectedMember.id ? { ...m, avatarUrl: newUrl } : m))
-          );
-
-          setToast({ type: "success", text: "Profilbild uppdaterad!" });
-          setToastVisible(true);
-          setTimeout(() => setToastVisible(false), 1400);
-        } catch (err) {
-          console.error(err);
-          setAvatarUploadError(err instanceof Error ? err.message : "Kunde inte ladda upp bild.");
-          setToast({ type: "error", text: "Kunde inte ladda upp bild." });
-          setToastVisible(true);
-          setTimeout(() => setToastVisible(false), 2000);
-        } finally {
-          setUploadingAvatar(false);
-          e.target.value = "";
-        }
-      }}
-      disabled={uploadingAvatar}
-    />
-
-    <label
-      htmlFor="avatar-upload-input"
-      className={`inline-flex cursor-pointer items-center justify-center rounded-full px-3 py-2 text-[11px] font-semibold ${
-        uploadingAvatar
-          ? "bg-gray-900 text-gray-500"
-          : "bg-gray-800 text-gray-100 hover:bg-gray-700"
-      }`}
-    >
-      {uploadingAvatar ? "Laddar upp..." : "Ladda upp profilbild"}
-    </label>
-
-    {uploadingAvatar && (
-      <p className="mt-2 text-[11px] text-gray-300">Laddar upp bild...</p>
-    )}
-
-    {avatarUploadError && (
-      <p className="mt-1 text-[11px] text-red-400">{avatarUploadError}</p>
-    )}
-  </div>
-)}
-
-              
-              {/* Dela profil (komplett, inkl "Delar profil för" + "Öppna länk") */}
+              {/* Byt profilbild (endast Admin/SuperAdmin) */}
               {(sessionRole === "admin" || sessionRole === "superadmin") && (
-                <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-gray-200">
+                <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-cyan-100">
+                    Profilbild
+                  </p>
+
+                  <p className="mb-2 text-[11px] text-gray-400">
+                    Ladda upp en ny bild för den här medlemmen. Bilden visas både
+                    här och i medlemslistan.
+                  </p>
+
+                  <input
+                    id="avatar-upload-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !selectedMember) return;
+
+                      setAvatarUploadError(null);
+                      setUploadingAvatar(true);
+
+                      try {
+                        const formData = new FormData();
+                        formData.append("file", file);
+                        formData.append("memberId", selectedMember.id);
+
+                        const res = await fetch("/api/avatar-upload", {
+                          method: "POST",
+                          body: formData,
+                        });
+
+                        const json = await res.json().catch(() => null);
+
+                        if (!res.ok) {
+                          throw new Error(
+                            json?.error ?? "Kunde inte ladda upp bild."
+                          );
+                        }
+
+                        const newUrl = json.avatarUrl as string;
+
+                        // Uppdatera valt member + listan
+                        setSelectedMember((prev) =>
+                          prev ? { ...prev, avatarUrl: newUrl } : prev
+                        );
+                        setMembers((prev) =>
+                          prev.map((m) =>
+                            m.id === selectedMember.id
+                              ? { ...m, avatarUrl: newUrl }
+                              : m
+                          )
+                        );
+
+                        setToast({
+                          type: "success",
+                          text: "Profilbild uppdaterad!",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 1400);
+                      } catch (err) {
+                        console.error(err);
+                        setAvatarUploadError(
+                          err instanceof Error
+                            ? err.message
+                            : "Kunde inte ladda upp bild."
+                        );
+                        setToast({
+                          type: "error",
+                          text: "Kunde inte ladda upp bild.",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 2000);
+                      } finally {
+                        setUploadingAvatar(false);
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={uploadingAvatar}
+                  />
+
+                  <label
+                    htmlFor="avatar-upload-input"
+                    className={`inline-flex cursor-pointer items-center justify-center rounded-full px-3 py-2 text-[11px] font-semibold ${
+                      uploadingAvatar
+                        ? "bg-gray-900 text-gray-500"
+                        : "bg-gray-800 text-gray-100 hover:bg-gray-700"
+                    }`}
+                  >
+                    {uploadingAvatar ? "Laddar upp..." : "Ladda upp profilbild"}
+                  </label>
+
+                  {uploadingAvatar && (
+                    <p className="mt-2 text-[11px] text-gray-300">
+                      Laddar upp bild...
+                    </p>
+                  )}
+
+                  {avatarUploadError && (
+                    <p className="mt-1 text-[11px] text-red-400">
+                      {avatarUploadError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Dela profil (textknappar) */}
+              {(sessionRole === "admin" || sessionRole === "superadmin") && (
+                <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-cyan-100">
                     Dela profil
                   </p>
 
@@ -1449,31 +1479,47 @@ useEffect(() => {
                   </p>
 
                   <div className="flex flex-col gap-2">
+                    {/* Skapa / återkalla länk */}
                     <div className="flex gap-2">
                       <button
                         type="button"
                         className="flex-1 rounded-md bg-blue-700 px-3 py-2 text-xs font-semibold text-blue-50 hover:bg-blue-600"
                         onClick={async () => {
                           try {
-                            setToast({ type: "success", text: "Skapar länk..." });
+                            setToast({
+                              type: "success",
+                              text: "Skapar länk...",
+                            });
                             setToastVisible(true);
 
                             const res = await fetch("/api/share/create", {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ memberId: selectedMember.id }),
+                              body: JSON.stringify({
+                                memberId: selectedMember.id,
+                              }),
                             });
-                            const json = await res.json();
-                            if (!res.ok) throw new Error(json?.error ?? "Kunde inte skapa länk");
+                            const json = await res.json().catch(() => null);
+                            if (!res.ok) {
+                              throw new Error(
+                                json?.error ?? "Kunde inte skapa länk"
+                              );
+                            }
 
                             setShareToken(json.token);
 
-                            setToast({ type: "success", text: "Länk skapad!" });
+                            setToast({
+                              type: "success",
+                              text: "Länk skapad!",
+                            });
                             setToastVisible(true);
                             setTimeout(() => setToastVisible(false), 1200);
                           } catch (err) {
                             console.error(err);
-                            setToast({ type: "error", text: "Kunde inte skapa länk." });
+                            setToast({
+                              type: "error",
+                              text: "Kunde inte skapa länk.",
+                            });
                             setToastVisible(true);
                             setTimeout(() => setToastVisible(false), 2000);
                           }
@@ -1490,19 +1536,31 @@ useEffect(() => {
                             const res = await fetch("/api/share/revoke", {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ memberId: selectedMember.id }),
+                              body: JSON.stringify({
+                                memberId: selectedMember.id,
+                              }),
                             });
-                            const json = await res.json();
-                            if (!res.ok) throw new Error(json?.error ?? "Kunde inte återkalla");
+                            const json = await res.json().catch(() => null);
+                            if (!res.ok) {
+                              throw new Error(
+                                json?.error ?? "Kunde inte återkalla"
+                              );
+                            }
 
                             setShareToken(null);
 
-                            setToast({ type: "success", text: "Länk återkallad." });
+                            setToast({
+                              type: "success",
+                              text: "Länk återkallad.",
+                            });
                             setToastVisible(true);
                             setTimeout(() => setToastVisible(false), 1200);
                           } catch (err) {
                             console.error(err);
-                            setToast({ type: "error", text: "Kunde inte återkalla." });
+                            setToast({
+                              type: "error",
+                              text: "Kunde inte återkalla.",
+                            });
                             setToastVisible(true);
                             setTimeout(() => setToastVisible(false), 2000);
                           }
@@ -1512,113 +1570,127 @@ useEffect(() => {
                       </button>
                     </div>
 
-                    <div className="rounded-md border border-gray-700 bg-black/50 px-2 py-2 text-[11px] text-gray-200 break-all">
+                    {/* Själva länken */}
+                    <div className="break-all rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-2 text-[11px] text-gray-200">
                       {shareToken
                         ? `${window.location.origin}/share/${shareToken}`
                         : "Ingen aktiv delningslänk ännu."}
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="rounded-md bg-gray-800 px-3 py-2 text-[11px] font-semibold hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500"
-                        disabled={!shareToken}
-                        onClick={async () => {
-                          if (!shareToken) return;
-                          const url = `${window.location.origin}/share/${shareToken}`;
-                          await navigator.clipboard.writeText(url);
-                          setToast({ type: "success", text: "Länk kopierad!" });
-                          setToastVisible(true);
-                          setTimeout(() => setToastVisible(false), 1200);
-                        }}
-                      >
-                        Kopiera länk
-                      </button>
+                    {/* Textknappar för delning */}
+                    <div className="mt-1">
+                      <p className="mb-1 text-[11px] text-gray-400">
+                        Dela till:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="rounded-md bg-gray-800 px-3 py-2 text-[11px] font-semibold text-gray-100 hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500"
+                          disabled={!shareToken}
+                          onClick={async () => {
+                            if (!shareToken) return;
+                            const url = `${window.location.origin}/share/${shareToken}`;
+                            await navigator.clipboard.writeText(url);
+                            setToast({
+                              type: "success",
+                              text: "Länk kopierad!",
+                            });
+                            setToastVisible(true);
+                            setTimeout(() => setToastVisible(false), 1200);
+                          }}
+                        >
+                          Kopiera länk
+                        </button>
 
-                      <button
-                        type="button"
-                        className="rounded-md bg-gray-800 px-3 py-2 text-[11px] font-semibold hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500"
-                        disabled={!shareToken}
-                        onClick={() => {
-                          if (!shareToken) return;
-                          const url = `${window.location.origin}/share/${shareToken}`;
-                          window.open(url, "_blank", "noopener,noreferrer");
-                        }}
-                      >
-                        Öppna länk
-                      </button>
+                        <button
+                          type="button"
+                          className="rounded-md bg-gray-800 px-3 py-2 text-[11px] font-semibold text-gray-100 hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500"
+                          disabled={!shareToken}
+                          onClick={() => {
+                            if (!shareToken) return;
+                            const url = `${window.location.origin}/share/${shareToken}`;
+                            window.open(
+                              url,
+                              "_blank",
+                              "noopener,noreferrer"
+                            );
+                          }}
+                        >
+                          Öppna länk
+                        </button>
 
-                      <a
-                        className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
-                          shareToken
-                            ? "bg-gray-800 hover:bg-gray-700"
-                            : "bg-gray-900 text-gray-500 pointer-events-none"
-                        }`}
-                        href={
-                          shareToken
-                            ? `mailto:?subject=Karateprofil&body=${encodeURIComponent(
-                                `Här är profilen:\n${window.location.origin}/share/${shareToken}`
-                              )}`
-                            : "#"
-                        }
-                      >
-                        E‑post
-                      </a>
+                        <a
+                          className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
+                            shareToken
+                              ? "bg-gray-800 hover:bg-gray-700 text-gray-100"
+                              : "pointer-events-none bg-gray-900 text-gray-500"
+                          }`}
+                          href={
+                            shareToken
+                              ? `mailto:?subject=Karateprofil&body=${encodeURIComponent(
+                                  `Här är profilen:\n${window.location.origin}/share/${shareToken}`
+                                )}`
+                              : "#"
+                          }
+                        >
+                          E‑post
+                        </a>
 
-                      <a
-                        className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
-                          shareToken
-                            ? "bg-gray-800 hover:bg-gray-700"
-                            : "bg-gray-900 text-gray-500 pointer-events-none"
-                        }`}
-                        href={
-                          shareToken
-                            ? `sms:&body=${encodeURIComponent(
-                                `Här är profilen: ${window.location.origin}/share/${shareToken}`
-                              )}`
-                            : "#"
-                        }
-                      >
-                        SMS
-                      </a>
+                        <a
+                          className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
+                            shareToken
+                              ? "bg-gray-800 hover:bg-gray-700 text-gray-100"
+                              : "pointer-events-none bg-gray-900 text-gray-500"
+                          }`}
+                          href={
+                            shareToken
+                              ? `sms:&body=${encodeURIComponent(
+                                  `Här är profilen: ${window.location.origin}/share/${shareToken}`
+                                )}`
+                              : "#"
+                          }
+                        >
+                          SMS
+                        </a>
 
-                      <a
-                        className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
-                          shareToken
-                            ? "bg-gray-800 hover:bg-gray-700"
-                            : "bg-gray-900 text-gray-500 pointer-events-none"
-                        }`}
-                        href={
-                          shareToken
-                            ? `https://wa.me/?text=${encodeURIComponent(
-                                `Här är profilen: ${window.location.origin}/share/${shareToken}`
-                              )}`
-                            : "#"
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        WhatsApp
-                      </a>
+                        <a
+                          className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
+                            shareToken
+                              ? "bg-gray-800 hover:bg-gray-700 text-gray-100"
+                              : "pointer-events-none bg-gray-900 text-gray-500"
+                          }`}
+                          href={
+                            shareToken
+                              ? `https://wa.me/?text=${encodeURIComponent(
+                                  `Här är profilen: ${window.location.origin}/share/${shareToken}`
+                                )}`
+                              : "#"
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          WhatsApp
+                        </a>
 
-                      <a
-                        className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
-                          shareToken
-                            ? "bg-gray-800 hover:bg-gray-700"
-                            : "bg-gray-900 text-gray-500 pointer-events-none"
-                        }`}
-                        href={
-                          shareToken
-                            ? `https://www.messenger.com/t/?link=${encodeURIComponent(
-                                `${window.location.origin}/share/${shareToken}`
-                              )}`
-                            : "#"
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Messenger
-                      </a>
+                        <a
+                          className={`rounded-md px-3 py-2 text-[11px] font-semibold ${
+                            shareToken
+                              ? "bg-gray-800 hover:bg-gray-700 text-gray-100"
+                              : "pointer-events-none bg-gray-900 text-gray-500"
+                          }`}
+                          href={
+                            shareToken
+                              ? `https://www.messenger.com/t/?link=${encodeURIComponent(
+                                  `${window.location.origin}/share/${shareToken}`
+                                )}`
+                              : "#"
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Messenger
+                        </a>
+                      </div>
                     </div>
 
                     <p className="text-[10px] text-gray-500">
@@ -1628,125 +1700,137 @@ useEffect(() => {
                 </div>
               )}
 
-             {/* Adminlösenord (Admin + SuperAdmin) */}
-{(sessionRole === "admin" || sessionRole === "superadmin") && (
-  <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
-    <p className="mb-2 text-xs font-semibold text-cyan-100">Adminlösenord</p>
+              {/* Adminlösenord (Admin + SuperAdmin) */}
+              {(sessionRole === "admin" || sessionRole === "superadmin") && (
+                <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-cyan-100">
+                    Adminlösenord
+                  </p>
 
-    <p className="mb-2 text-[11px] text-gray-400">
-      Sätt eller byt adminlösenord för den här profilen. Lösenordet sparas
-      aldrig i klartext.
-    </p>
+                  <p className="mb-2 text-[11px] text-gray-400">
+                    Sätt eller byt adminlösenord för den här profilen. Lösenordet
+                    sparas aldrig i klartext.
+                  </p>
 
-    <input
-      type="password"
-      autoComplete="new-password"
-      className="w-full rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
-      value={editingAdminPassword}
-      onChange={(e) => setEditingAdminPassword(e.target.value)}
-      placeholder="Skriv nytt lösenord"
-    />
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    className="w-full rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+                    value={editingAdminPassword}
+                    onChange={(e) => setEditingAdminPassword(e.target.value)}
+                    placeholder="Skriv nytt lösenord"
+                  />
 
-    <button
-      type="button"
-      className="mt-2 rounded-md bg-cyan-700 px-3 py-2 text-xs font-semibold text-cyan-50 hover:bg-cyan-600"
-      onClick={async () => {
-        try {
-          if (!selectedMember) return;
+                  <button
+                    type="button"
+                    className="mt-2 rounded-md bg-cyan-700 px-3 py-2 text-xs font-semibold text-cyan-50 hover:bg-cyan-600"
+                    onClick={async () => {
+                      try {
+                        if (!selectedMember) return;
 
-          if (!editingAdminPassword.trim()) {
-            alert("Skriv in ett lösenord först.");
-            return;
-          }
+                        if (!editingAdminPassword.trim()) {
+                          alert("Skriv in ett lösenord först.");
+                          return;
+                        }
 
-          const res = await fetch("/api/admin/setPassword", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              memberId: selectedMember.id,
-              newPassword: editingAdminPassword,
-            }),
-          });
+                        const res = await fetch("/api/admin/setPassword", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            memberId: selectedMember.id,
+                            newPassword: editingAdminPassword,
+                          }),
+                        });
 
-          const json = await res.json().catch(() => null);
+                        const json = await res.json().catch(() => null);
 
-          if (!res.ok) {
-            throw new Error(json?.error ?? "Kunde inte spara lösenord.");
-          }
+                        if (!res.ok) {
+                          throw new Error(
+                            json?.error ?? "Kunde inte spara lösenord."
+                          );
+                        }
 
-          setEditingAdminPassword("");
+                        setEditingAdminPassword("");
 
-          setToast({
-            type: "success",
-            text: "Adminlösenord sparat!",
-          });
-          setToastVisible(true);
-          setTimeout(() => setToastVisible(false), 1400);
-        } catch (err) {
-          console.error(err);
-          setToast({
-            type: "error",
-            text: "Kunde inte spara lösenord.",
-          });
-          setToastVisible(true);
-          setTimeout(() => setToastVisible(false), 2000);
-        }
-      }}
-    >
-      Spara lösenord
-    </button>
-  </div>
-)}
+                        setToast({
+                          type: "success",
+                          text: "Adminlösenord sparat!",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 1400);
+                      } catch (err) {
+                        console.error(err);
+                        setToast({
+                          type: "error",
+                          text: "Kunde inte spara lösenord.",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 2000);
+                      }
+                    }}
+                  >
+                    Spara lösenord
+                  </button>
+                </div>
+              )}
 
               {/* Roll / rättigheter (endast SuperAdmin) */}
-{sessionRole === "superadmin" && (
-  <div className="mb-4 rounded-lg border-2 border-purple-500/60 bg-black/40 p-3">
-    <p className="mb-2 text-xs font-semibold text-purple-100">
-      Rättigheter / roll (SuperAdmin)
-    </p>
+              {sessionRole === "superadmin" && (
+                <div className="mb-4 rounded-lg border-2 border-purple-500/60 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-purple-100">
+                    Rättigheter / roll (SuperAdmin)
+                  </p>
 
-    <p className="mb-2 text-[11px] text-gray-300">
-      Nuvarande roll:{" "}
-      <span className="font-semibold">
-        {selectedMember.role === "member"
-          ? "Medlem"
-          : selectedMember.role === "admin"
-          ? "Admin"
-          : "SuperAdmin"}
-      </span>
-    </p>
+                  <p className="mb-2 text-[11px] text-gray-300">
+                    Nuvarande roll:{" "}
+                    <span className="font-semibold">
+                      {selectedMember.role === "member"
+                        ? "Medlem"
+                        : selectedMember.role === "admin"
+                        ? "Admin"
+                        : "SuperAdmin"}
+                    </span>
+                  </p>
 
-    <label className="mb-1 block text-[11px] text-gray-300">Ändra roll</label>
+                  <label className="mb-1 block text-[11px] text-gray-300">
+                    Ändra roll
+                  </label>
 
-    <div className="relative">
-      <select
-        className="w-full appearance-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 pr-8 text-xs text-gray-100 focus:border-purple-500 focus:outline-none"
-        value={selectedMember.role}
-        onChange={(e) => {
-          const newRole = e.target.value as MemberRole;
-          setSelectedMember((prev) => (prev ? { ...prev, role: newRole } : prev));
-        }}
-      >
-        <option value="member">Medlem</option>
-        <option value="admin">Admin</option>
-        <option value="superadmin">SuperAdmin</option>
-      </select>
+                  <div className="relative">
+                    <select
+                      className="w-full appearance-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 pr-8 text-xs text-gray-100 focus:border-purple-500 focus:outline-none"
+                      value={selectedMember.role}
+                      onChange={(e) => {
+                        const newRole = e.target.value as MemberRole;
+                        setSelectedMember((prev) =>
+                          prev ? { ...prev, role: newRole } : prev
+                        );
+                      }}
+                    >
+                      <option value="member">Medlem</option>
+                      <option value="admin">Admin</option>
+                      <option value="superadmin">SuperAdmin</option>
+                    </select>
 
-      {/* Dropdown-indikator */}
-      <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M5.25 7.5L10 12.25 14.75 7.5" />
-        </svg>
-      </div>
-    </div>
+                    <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path d="M5.25 7.5L10 12.25 14.75 7.5" />
+                      </svg>
+                    </div>
+                  </div>
 
-    <p className="mt-2 text-[10px] text-gray-500">
-      Endast SuperAdmin kan ändra roller.
-    </p>
-  </div>
-)}
+                  <p className="mt-2 text-[10px] text-gray-500">
+                    Endast SuperAdmin kan ändra roller.
+                  </p>
+                </div>
+              )}
 
               {/* Grundinfo */}
               <div className="mb-4 space-y-2 text-sm">
@@ -1760,15 +1844,15 @@ useEffect(() => {
                     </p>
 
                     {(sessionRole === "admin" || sessionRole === "superadmin") && (
-                      <div className="mt-2">
-                        <label className="mb-1 block text-[11px] text-gray-300">
+                      <div className="mt-2 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+                        <label className="mb-1 block text-[11px] text-cyan-100">
                           Födelsedata (YYMMDD)
                         </label>
                         <input
                           type="text"
                           inputMode="numeric"
                           maxLength={6}
-                          className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                          className="w-full rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
                           value={editingBirthYmd}
                           onChange={(e) => {
                             const onlyDigits = e.target.value
@@ -1811,110 +1895,81 @@ useEffect(() => {
                     ) : (
                       <div className="space-y-2 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
                         <div>
-                          <div>
-  <label className="mb-1 block text-[11px] text-gray-300">
-    Nuvarande grad
-  </label>
-
-  <div className="relative">
-    <select
-      className="w-full appearance-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 pr-8 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
-      value={editingBeltRank}
-      onChange={(e) => {
-        const newCurrent = e.target.value as BeltRank;
-        const newNext = getNextBeltRank(newCurrent);
-        const newRequired = getRequiredSessionsForNextBelt(newCurrent, newNext);
-
-        setEditingBeltRank(newCurrent);
-
-        setSelectedMember((prev) => {
-          if (!prev || !editingGradingStatus) return prev;
-
-          const updatedLocal = {
-            ...prev,
-            beltRank: newCurrent,
-            nextBeltRank: newNext,
-            requiredSessions: newRequired,
-          };
-
-          const newProgress = calculateProgress(
-            editingGradingStatus,
-            updatedLocal.attendedSessions,
-            updatedLocal.requiredSessions,
-            editingPhysicalEnabled
-          );
-
-          return { ...updatedLocal, progress: newProgress };
-        });
-      }}
-    >
-      {beltOrder.map((b) => (
-        <option key={b} value={b}>
-          {getBeltLabel(b)}
-        </option>
-      ))}
-    </select>
-
-    {/* Dropdown-indikator */}
-    <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
-      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M5.25 7.5L10 12.25 14.75 7.5" />
-      </svg>
-    </div>
-  </div>
-</div>
                           <label className="mb-1 block text-[11px] text-gray-300">
-                            Kräver antal pass (auto)
+                            Nuvarande grad
                           </label>
-                          <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-xs text-gray-100">
-                            {getRequiredSessionsForNextBelt(
-                              editingBeltRank,
-                              getNextBeltRank(editingBeltRank)
-                            )}{" "}
-                            pass
+
+                          <div className="relative">
+                            <select
+                              className="w-full appearance-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 pr-8 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                              value={editingBeltRank}
+                              onChange={(e) => {
+                                const newCurrent = e.target.value as BeltRank;
+                                const newNext = getNextBeltRank(newCurrent);
+                                const newRequired =
+                                  getRequiredSessionsForNextBelt(
+                                    newCurrent,
+                                    newNext
+                                  );
+
+                                setEditingBeltRank(newCurrent);
+
+                                setSelectedMember((prev) => {
+                                  if (!prev || !editingGradingStatus) return prev;
+
+                                  const updatedLocal = {
+                                    ...prev,
+                                    beltRank: newCurrent,
+                                    nextBeltRank: newNext,
+                                    requiredSessions: newRequired,
+                                  };
+
+                                  const newProgress = calculateProgress(
+                                    editingGradingStatus,
+                                    updatedLocal.attendedSessions,
+                                    updatedLocal.requiredSessions,
+                                    editingPhysicalEnabled
+                                  );
+
+                                  return { ...updatedLocal, progress: newProgress };
+                                });
+                              }}
+                            >
+                              {beltOrder.map((b) => (
+                                <option key={b} value={b}>
+                                  {getBeltLabel(b)}
+                                </option>
+                              ))}
+                            </select>
+
+                            <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path d="M5.25 7.5L10 12.25 14.75 7.5" />
+                              </svg>
+                            </div>
                           </div>
+                        </div>
+
+                        <label className="mb-1 block text-[11px] text-gray-300">
+                          Kräver antal pass (auto)
+                        </label>
+                        <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-xs text-gray-100">
+                          {getRequiredSessionsForNextBelt(
+                            editingBeltRank,
+                            getNextBeltRank(editingBeltRank)
+                          )}{" "}
+                          pass
                         </div>
                       </div>
                     )}
                   </>
                 )}
               </div>
-
-              {/* Fysiska krav */}
-              {selectedMember.physicalEnabled && (
-                <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-gray-200">
-                    Fysiska krav inför {getBeltLabel(selectedMember.nextBeltRank)}
-                  </p>
-
-                  {physicalReqMap[selectedMember.nextBeltRank] ? (
-                    <ul className="space-y-1 text-xs text-gray-200">
-                      <li>
-                        Armhävningar:{" "}
-                        <span className="font-semibold">
-                          {physicalReqMap[selectedMember.nextBeltRank].pushups}
-                        </span>
-                      </li>
-                      <li>
-                        Situps:{" "}
-                        <span className="font-semibold">
-                          {physicalReqMap[selectedMember.nextBeltRank].situps}
-                        </span>
-                      </li>
-                      <li>
-                        Squats:{" "}
-                        <span className="font-semibold">
-                          {physicalReqMap[selectedMember.nextBeltRank].squats}
-                        </span>
-                      </li>
-                    </ul>
-                  ) : (
-                    <p className="text-[11px] text-gray-400">
-                      Saknar fyskrav för detta bälte.
-                    </p>
-                  )}
-                </div>
-              )}
 
               {/* Graderingsstatus */}
               <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
@@ -1953,7 +2008,7 @@ useEffect(() => {
 
                 {sessionRole !== "member" && (
                   <>
-                    <div className="space-y-3 text-[11px] mt-2">
+                    <div className="mt-2 space-y-3 text-[11px]">
                       {(
                         [
                           ["Kihon", "kihon"],
@@ -1963,11 +2018,12 @@ useEffect(() => {
                         ] as [string, keyof GradingStatus][]
                       ).map(([label, key]) => {
                         const currentValue = editingGradingStatus[key];
-                        const disabled = key === "physical" && !editingPhysicalEnabled;
+                        const disabled =
+                          key === "physical" && !editingPhysicalEnabled;
 
                         return (
                           <div key={label} className="flex flex-col gap-1">
-                            <span className="text-gray-200 text-xs">{label}</span>
+                            <span className="text-xs text-gray-200">{label}</span>
                             <div className="flex gap-2">
                               {(
                                 [
@@ -1997,7 +2053,7 @@ useEffect(() => {
                                     disabled={disabled}
                                     className={`flex-1 rounded-full border px-2 py-1 text-[10px] font-semibold ${
                                       disabled
-                                        ? "bg-gray-900 text-gray-600 border-gray-700 cursor-not-allowed"
+                                        ? "cursor-not-allowed border-gray-700 bg-gray-900 text-gray-600"
                                         : isActive
                                         ? baseColor
                                         : "bg-black text-gray-300 border-gray-600 hover:bg-gray-800"
@@ -2100,87 +2156,94 @@ useEffect(() => {
               </div>
 
               {/* Kommentar */}
-<div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
-  <p className="mb-2 text-xs font-semibold text-cyan-100">Kommentar till medlem</p>
+              <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+                <p className="mb-2 text-xs font-semibold text-cyan-100">
+                  Kommentar till medlem
+                </p>
 
-  {sessionRole === "member" ? (
-    selectedMember.visibility.showMemberComment ? (
-      <p className="text-xs text-gray-200 whitespace-pre-line">
-        {selectedMember.memberComment || "Ingen kommentar ännu."}
-      </p>
-    ) : (
-      <p className="text-[11px] text-gray-500">Denna information är inte tillgänglig.</p>
-    )
-  ) : (
-    <textarea
-      className="h-20 w-full resize-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
-      value={editingMemberComment}
-      onChange={(e) => setEditingMemberComment(e.target.value)}
-    />
-  )}
-</div>
+                {sessionRole === "member" ? (
+                  selectedMember.visibility.showMemberComment ? (
+                    <p className="whitespace-pre-line text-xs text-gray-200">
+                      {selectedMember.memberComment || "Ingen kommentar ännu."}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-gray-500">
+                      Denna information är inte tillgänglig.
+                    </p>
+                  )
+                ) : (
+                  <textarea
+                    className="h-20 w-full resize-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+                    value={editingMemberComment}
+                    onChange={(e) => setEditingMemberComment(e.target.value)}
+                  />
+                )}
+              </div>
 
               {/* Intern kommentar */}
-{sessionRole !== "member" && (
-  <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
-    <p className="mb-2 text-xs font-semibold text-cyan-100">
-      Intern instruktörskommentar
-    </p>
-    <textarea
-      className="h-20 w-full resize-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
-      value={editingInstructorComment}
-      onChange={(e) => setEditingInstructorComment(e.target.value)}
-    />
-  </div>
-)}
+              {sessionRole !== "member" && (
+                <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+                  <p className="mb-2 text-xs font-semibold text-cyan-100">
+                    Intern instruktörskommentar
+                  </p>
+                  <textarea
+                    className="h-20 w-full resize-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+                    value={editingInstructorComment}
+                    onChange={(e) => setEditingInstructorComment(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
 
-             {/* FOOTER */}
-        <div className="flex justify-end gap-2 px-4 py-3 border-t border-white/10 bg-neutral-950">
-          {(sessionRole === "admin" || sessionRole === "superadmin") && (
-            <button
-              type="button"
-              className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
-              onClick={async () => {
-                try {
-                  if (!selectedMember) {
-                    setToast({ type: "error", text: "Inget medlem vald." });
-                    setToastVisible(true);
-                    setTimeout(() => setToastVisible(false), 2000);
-                    return;
-                  }
+            {/* FOOTER */}
+            <div className="flex justify-end gap-2 border-t border-white/10 bg-neutral-950 px-4 py-3">
+              {(sessionRole === "admin" || sessionRole === "superadmin") && (
+                <button
+                  type="button"
+                  className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
+                  onClick={async () => {
+                    try {
+                      if (!selectedMember) {
+                        setToast({
+                          type: "error",
+                          text: "Inget medlem vald.",
+                        });
+                        setToastVisible(true);
+                        setTimeout(() => setToastVisible(false), 2000);
+                        return;
+                      }
 
-                  await saveMemberChanges(selectedMember);
+                      await saveMemberChanges(selectedMember);
 
-                  setToast({
-                    type: "success",
-                    text: "Ändringar sparade!",
-                  });
-                  setToastVisible(true);
-                  setTimeout(() => setToastVisible(false), 1400);
-                } catch (err) {
-                  console.error(err);
-                  setToast({
-                    type: "error",
-                    text: "Kunde inte spara ändringar.",
-                  });
-                  setToastVisible(true);
-                  setTimeout(() => setToastVisible(false), 2000);
-                }
-              }}
-            >
-              Spara ändringar
-            </button>
-          )}
+                      setToast({
+                        type: "success",
+                        text: "Ändringar sparade!",
+                      });
+                      setToastVisible(true);
+                      setTimeout(() => setToastVisible(false), 1400);
+                    } catch (err) {
+                      console.error(err);
+                      setToast({
+                        type: "error",
+                        text: "Kunde inte spara ändringar.",
+                      });
+                      setToastVisible(true);
+                      setTimeout(() => setToastVisible(false), 2000);
+                    }
+                  }}
+                >
+                  Spara ändringar
+                </button>
+              )}
 
-          <button
-            type="button"
-            className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
-            onClick={closeProfile}
-          >
-            Stäng
-          </button>
-        </div>
+              <button
+                type="button"
+                className="rounded-md bg-gray-700 px-3 py-1 text-xs font-semibold text-gray-100 hover:bg-gray-600"
+                onClick={closeProfile}
+              >
+                Stäng
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -328,12 +328,7 @@ export default function HomePage() {
           {isLoggedIn
             ? `Inloggad som ${session?.name ?? "Okänd"}`
             : "Ej inloggad"}
-        </p>
-
-        <p className="text-[11px] text-gray-500 sm:text-xs">
-  debug: savedClubId={typeof window !== "undefined" ? localStorage.getItem("selectedClubId") : ""}
-</p>
-
+        </p>        
       </div>
 
       {/* =====================================================

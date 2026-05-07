@@ -77,6 +77,25 @@ function getDisplayAge(m: SharedMember): number {
   return calculateAgeFromBirthDate(d);
 }
 
+function formatBeltRankShort(belt: string): string {
+  // Förväntar sig t.ex. "9_kyu" eller "1_dan"
+  if (!belt) return "-";
+  const [num, type] = belt.split("_");
+  if (!num || !type) return belt;
+
+  const n = Number(num);
+  const labelNum = isNaN(n) ? num : n.toString();
+
+  if (type === "kyu") {
+    return `${labelNum} kyu`;
+  }
+  if (type === "dan") {
+    return `${labelNum} dan`;
+  }
+
+  return belt;
+}
+
 function gradingLabel(v: GradingStatusValue) {
   if (v === "ready") {
     return {
@@ -211,79 +230,57 @@ export default function SharePage({
           {member.firstName} {member.lastName}
         </h1>
 
-        {/* Bild + tårta + text i rad */}
-        <div className="flex items-center gap-4 mb-4">
-          {/* Profilbild till vänster */}
-          <Image
-            src={member.avatarUrl}
-            alt={member.firstName}
-            width={132}
-            height={132}
-            className="h-[5.5rem] w-[5.5rem] rounded-full object-cover"
-          />
+        {/* Bild + tårta (större avatar, tårta under bilden) */}
+        <div className="mb-4 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            {/* Stor profilbild */}
+            <Image
+              src={member.avatarUrl}
+              alt={member.firstName}
+              width={132}
+              height={132}
+              className="h-[10.25rem] w-[10.25rem] rounded-full object-cover"
+            />
 
-          {/* Tårta + förklaring till höger om bilden */}
-          <div className="flex items-center gap-3">
-            {/* Tårtbit i mitten-kolumnen */}
+            {/* Tårta under bilden */}
             <LargeProgressCircle progress={member.progress ?? 0} />
-
-            {/* Förklarande text till höger om tårtan */}
-            <div className="flex flex-col justify-center text-[10px] text-gray-300 max-w-[11rem]">
-              <span className="font-semibold text-[11px] text-gray-100 mb-1">
-                Detta betyder progress‑cirkeln:
-              </span>
-
-              {/* En rad per färg, med dina ALT+255‑mellanrum */}
-              <span className="block">
-                      Röd       - Ej redo för gradering
-                    </span>
-                    <span className="block">
-                      Orange  - Delvis redo för gradering
-                    </span>
-                    <span className="block mb-2">
-                      Grön      - Redo för gradering
-                    </span>
-
-              <span className="font-semibold text-[11px] text-gray-100 mt-1">
-                Vad ingår i bedömningen?
-              </span>
-              <span className="block">
-                - Antal pass: {member.attendedSessions}/{member.requiredSessions} pass
-              </span>
-              <span className="block">
-                - Godkänd Kihon, Kata och Kumite
-              </span>
-              <span className="block">
-                - Ev. fysiskt krav om det är aktiverat
-              </span>
-            </div>
           </div>
         </div>
 
-        {member.visibility.showAge && (
-          <p className="text-sm text-gray-200 mb-2">
-            Ålder:{" "}
-            <span className="font-semibold">{getDisplayAge(member)} år</span>
-          </p>
-        )}
+        {(member.visibility.showAge || member.visibility.showBeltInfo) && (
+          <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3 text-sm">
+            {member.visibility.showAge && (
+              <p className="mb-1 text-gray-200">
+                Ålder:{" "}
+                <span className="font-semibold">
+                  {getDisplayAge(member)} år
+                </span>
+              </p>
+            )}
 
-        {member.visibility.showBeltInfo && (
-          <div className="text-sm mb-3 space-y-1">
-            <p className="text-gray-200">
-              Nuvarande:{" "}
-              <span className="font-semibold">{member.beltRank}</span>
-            </p>
-            <p className="text-gray-300">
-              Nästa:{" "}
-              <span className="font-semibold">{member.nextBeltRank}</span>
-            </p>
+            {member.visibility.showBeltInfo && (
+              <div className="mt-1 space-y-1">
+                <p className="text-gray-200">
+                  Nuvarande:{" "}
+                  <span className="font-semibold">
+                    {formatBeltRankShort(member.beltRank)}
+                  </span>
+                </p>
+                <p className="text-gray-300">
+                  Nästa:{" "}
+                  <span className="font-semibold">
+                    {formatBeltRankShort(member.nextBeltRank)}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
         )}
 
         
          {member.visibility.showGradingStatus && (
-          <div className="rounded-lg border border-white/10 bg-black/40 p-3 mb-4">
-            <p className="text-xs font-semibold text-gray-200 mb-2">
+          <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+            <p className="mb-2 text-xs font-semibold text-cyan-100">
               Graderingsstatus
             </p>
             <div className="space-y-2 text-xs text-gray-200">
@@ -328,10 +325,10 @@ export default function SharePage({
                   {/* Lista fysiska krav under Fysik */}
                   {member.physicalRequirements ? (
                     <div className="mt-1 text-[10px] text-gray-300">
-                      <p className="font-semibold text-gray-200 mb-1">
+                      <p className="mb-1 font-semibold text-gray-200">
                         Fysiska krav för kommande bälte:
                       </p>
-                      <ul className="list-disc pl-4 space-y-0.5">
+                      <ul className="list-disc space-y-0.5 pl-4">
                         <li>
                           Armhävningar:{" "}
                           <span className="font-semibold">
@@ -363,14 +360,33 @@ export default function SharePage({
           </div>
         )}
 
-        {member.visibility.showMemberComment && (
-          <div className="rounded-lg border border-white/10 bg-black/40 p-3">
-            <p className="text-xs font-semibold text-gray-200 mb-2">
+       {member.visibility.showMemberComment && (
+          <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+            <p className="mb-2 text-xs font-semibold text-cyan-100">
               Kommentar
             </p>
-            <p className="text-xs text-gray-200 whitespace-pre-line">
+            <p className="whitespace-pre-line text-xs text-gray-200">
               {member.memberComment || "Ingen kommentar ännu."}
             </p>
+
+            {/* Förklaring till progress‑cirkeln under kommentaren */}
+            <div className="mt-3 rounded-md border border-gray-700 bg-black/40 px-2 py-2 text-[11px] text-gray-300">
+              <p className="mb-1 font-semibold text-gray-100">
+                Detta betyder progress‑cirkeln:
+              </p>
+              <p>Röd      - Ej redo för gradering</p>
+              <p>Orange - Delvis redo för gradering</p>
+              <p className="mb-2">Grön     - Redo för gradering</p>
+
+              <p className="mt-1 font-semibold text-gray-100">
+                Vad ingår i bedömningen?
+              </p>
+              <p>
+                - Antal pass: {member.attendedSessions}/{member.requiredSessions} pass
+              </p>
+              <p>- Godkänd Kihon, Kata och Kumite</p>
+              <p>- Ev. fysiskt krav om det är aktiverat</p>
+            </div>
           </div>
         )}
       </div>
