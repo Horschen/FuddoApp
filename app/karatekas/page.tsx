@@ -1279,108 +1279,88 @@ useEffect(() => {
               </div>
 
 {/* Byt profilbild (endast Admin/SuperAdmin) */}
-              {(sessionRole === "admin" || sessionRole === "superadmin") && (
-                <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-gray-200">
-                    Profilbild
-                  </p>
+{(sessionRole === "admin" || sessionRole === "superadmin") && (
+  <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+    <p className="mb-2 text-xs font-semibold text-cyan-100">Profilbild</p>
 
-                  <p className="mb-2 text-[11px] text-gray-400">
-                    Ladda upp en ny bild för den här medlemmen. Bilden visas både
-                    här och i medlemslistan.
-                  </p>
+    <p className="mb-2 text-[11px] text-gray-400">
+      Ladda upp en ny bild för den här medlemmen. Bilden visas både här och i
+      medlemslistan.
+    </p>
 
-                  {/* Dold fil-input + knapp */}
-                  <input
-                    id="avatar-upload-input"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || !selectedMember) return;
+    <input
+      id="avatar-upload-input"
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedMember) return;
 
-                      setAvatarUploadError(null);
-                      setUploadingAvatar(true);
+        setAvatarUploadError(null);
+        setUploadingAvatar(true);
 
-                      try {
-                        const formData = new FormData();
-                        formData.append("file", file);
-                        formData.append("memberId", selectedMember.id);
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("memberId", selectedMember.id);
 
-                        const res = await fetch("/api/avatar-upload", {
-                          method: "POST",
-                          body: formData,
-                        });
+          const res = await fetch("/api/avatar-upload", {
+            method: "POST",
+            body: formData,
+          });
 
-                        const json = await res.json().catch(() => null);
+          const json = await res.json().catch(() => null);
 
-                        if (!res.ok) {
-                          throw new Error(json?.error ?? "Kunde inte ladda upp bild.");
-                        }
+          if (!res.ok) {
+            throw new Error(json?.error ?? "Kunde inte ladda upp bild.");
+          }
 
-                        const newUrl = json.avatarUrl as string;
+          const newUrl = json.avatarUrl as string;
 
-                        // Uppdatera valt member + listan
-                        setSelectedMember((prev) =>
-                          prev ? { ...prev, avatarUrl: newUrl } : prev
-                        );
-                        setMembers((prev) =>
-                          prev.map((m) =>
-                            m.id === selectedMember.id ? { ...m, avatarUrl: newUrl } : m
-                          )
-                        );
+          // Uppdatera valt member + listan
+          setSelectedMember((prev) => (prev ? { ...prev, avatarUrl: newUrl } : prev));
+          setMembers((prev) =>
+            prev.map((m) => (m.id === selectedMember.id ? { ...m, avatarUrl: newUrl } : m))
+          );
 
-                        setToast({
-                          type: "success",
-                          text: "Profilbild uppdaterad!",
-                        });
-                        setToastVisible(true);
-                        setTimeout(() => setToastVisible(false), 1400);
-                      } catch (err) {
-                        console.error(err);
-                        setAvatarUploadError(
-                          err instanceof Error ? err.message : "Kunde inte ladda upp bild."
-                        );
-                        setToast({
-                          type: "error",
-                          text: "Kunde inte ladda upp bild.",
-                        });
-                        setToastVisible(true);
-                        setTimeout(() => setToastVisible(false), 2000);
-                      } finally {
-                        setUploadingAvatar(false);
-                        // Töm file input så man kan välja samma fil igen om man vill
-                        e.target.value = "";
-                      }
-                    }}
-                    disabled={uploadingAvatar}
-                  />
+          setToast({ type: "success", text: "Profilbild uppdaterad!" });
+          setToastVisible(true);
+          setTimeout(() => setToastVisible(false), 1400);
+        } catch (err) {
+          console.error(err);
+          setAvatarUploadError(err instanceof Error ? err.message : "Kunde inte ladda upp bild.");
+          setToast({ type: "error", text: "Kunde inte ladda upp bild." });
+          setToastVisible(true);
+          setTimeout(() => setToastVisible(false), 2000);
+        } finally {
+          setUploadingAvatar(false);
+          e.target.value = "";
+        }
+      }}
+      disabled={uploadingAvatar}
+    />
 
-                  <label
-                    htmlFor="avatar-upload-input"
-                    className={`inline-flex cursor-pointer items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${
-                      uploadingAvatar
-                        ? "bg-gray-900 text-gray-500"
-                        : "bg-gray-800 text-gray-100 hover:bg-gray-700"
-                    }`}
-                  >
-                    {uploadingAvatar ? "Laddar upp..." : "Ladda upp profilbild"}
-                  </label>
+    <label
+      htmlFor="avatar-upload-input"
+      className={`inline-flex cursor-pointer items-center justify-center rounded-full px-3 py-2 text-[11px] font-semibold ${
+        uploadingAvatar
+          ? "bg-gray-900 text-gray-500"
+          : "bg-gray-800 text-gray-100 hover:bg-gray-700"
+      }`}
+    >
+      {uploadingAvatar ? "Laddar upp..." : "Ladda upp profilbild"}
+    </label>
 
-                  {uploadingAvatar && (
-                    <p className="mt-2 text-[11px] text-gray-300">
-                      Laddar upp bild...
-                    </p>
-                  )}
+    {uploadingAvatar && (
+      <p className="mt-2 text-[11px] text-gray-300">Laddar upp bild...</p>
+    )}
 
-                  {avatarUploadError && (
-                    <p className="mt-1 text-[11px] text-red-400">
-                      {avatarUploadError}
-                    </p>
-                  )}
-                </div>
-              )}
+    {avatarUploadError && (
+      <p className="mt-1 text-[11px] text-red-400">{avatarUploadError}</p>
+    )}
+  </div>
+)}
 
               
               {/* Dela profil (komplett, inkl "Delar profil för" + "Öppna länk") */}
@@ -1580,122 +1560,125 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* Adminlösenord (Admin + SuperAdmin) */}
-              {(sessionRole === "admin" || sessionRole === "superadmin") && (
-                <div className="mb-4 rounded-lg border border-cyan-500/30 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-cyan-100">
-                    Adminlösenord
-                  </p>
+             {/* Adminlösenord (Admin + SuperAdmin) */}
+{(sessionRole === "admin" || sessionRole === "superadmin") && (
+  <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+    <p className="mb-2 text-xs font-semibold text-cyan-100">Adminlösenord</p>
 
-                  <p className="mb-2 text-[11px] text-gray-400">
-                    Sätt eller byt adminlösenord för den här profilen. Lösenordet sparas
-                    aldrig i klartext.
-                  </p>
+    <p className="mb-2 text-[11px] text-gray-400">
+      Sätt eller byt adminlösenord för den här profilen. Lösenordet sparas
+      aldrig i klartext.
+    </p>
 
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
-                    value={editingAdminPassword}
-                    onChange={(e) => setEditingAdminPassword(e.target.value)}
-                    placeholder="Skriv nytt lösenord"
-                  />
+    <input
+      type="password"
+      autoComplete="new-password"
+      className="w-full rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+      value={editingAdminPassword}
+      onChange={(e) => setEditingAdminPassword(e.target.value)}
+      placeholder="Skriv nytt lösenord"
+    />
 
-                  <button
-                    type="button"
-                    className="mt-2 rounded-md bg-cyan-700 px-3 py-1 text-xs font-semibold text-cyan-50 hover:bg-cyan-600"
-                    onClick={async () => {
-                      try {
-                        if (!selectedMember) return;
+    <button
+      type="button"
+      className="mt-2 rounded-md bg-cyan-700 px-3 py-2 text-xs font-semibold text-cyan-50 hover:bg-cyan-600"
+      onClick={async () => {
+        try {
+          if (!selectedMember) return;
 
-                        if (!editingAdminPassword.trim()) {
-                          alert("Skriv in ett lösenord först.");
-                          return;
-                        }
+          if (!editingAdminPassword.trim()) {
+            alert("Skriv in ett lösenord först.");
+            return;
+          }
 
-                        const res = await fetch("/api/admin/setPassword", {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                          },
-                          body: JSON.stringify({
-                            memberId: selectedMember.id,
-                            newPassword: editingAdminPassword,
-                          }),
-                        });
+          const res = await fetch("/api/admin/setPassword", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              memberId: selectedMember.id,
+              newPassword: editingAdminPassword,
+            }),
+          });
 
-                        const json = await res.json().catch(() => null);
+          const json = await res.json().catch(() => null);
 
-                        if (!res.ok) {
-                          throw new Error(json?.error ?? "Kunde inte spara lösenord.");
-                        }
+          if (!res.ok) {
+            throw new Error(json?.error ?? "Kunde inte spara lösenord.");
+          }
 
-                        setEditingAdminPassword("");
+          setEditingAdminPassword("");
 
-                        setToast({
-                          type: "success",
-                          text: "Adminlösenord sparat!",
-                        });
-                        setToastVisible(true);
-                        setTimeout(() => setToastVisible(false), 1400);
-                      } catch (err) {
-                        console.error(err);
-                        setToast({
-                          type: "error",
-                          text: "Kunde inte spara lösenord.",
-                        });
-                        setToastVisible(true);
-                        setTimeout(() => setToastVisible(false), 2000);
-                      }
-                    }}
-                  >
-                    Spara lösenord
-                  </button>
-                </div>
-              )}
+          setToast({
+            type: "success",
+            text: "Adminlösenord sparat!",
+          });
+          setToastVisible(true);
+          setTimeout(() => setToastVisible(false), 1400);
+        } catch (err) {
+          console.error(err);
+          setToast({
+            type: "error",
+            text: "Kunde inte spara lösenord.",
+          });
+          setToastVisible(true);
+          setTimeout(() => setToastVisible(false), 2000);
+        }
+      }}
+    >
+      Spara lösenord
+    </button>
+  </div>
+)}
 
               {/* Roll / rättigheter (endast SuperAdmin) */}
-              {sessionRole === "superadmin" && (
-                <div className="mb-4 rounded-lg border border-purple-500/40 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-purple-100">
-                    Rättigheter / roll
-                  </p>
+{sessionRole === "superadmin" && (
+  <div className="mb-4 rounded-lg border-2 border-purple-500/60 bg-black/40 p-3">
+    <p className="mb-2 text-xs font-semibold text-purple-100">
+      Rättigheter / roll (SuperAdmin)
+    </p>
 
-                  <p className="mb-2 text-[11px] text-gray-300">
-                    Nuvarande roll:{" "}
-                    <span className="font-semibold">
-                      {selectedMember.role === "member"
-                        ? "Medlem"
-                        : selectedMember.role === "admin"
-                        ? "Admin"
-                        : "SuperAdmin"}
-                    </span>
-                  </p>
+    <p className="mb-2 text-[11px] text-gray-300">
+      Nuvarande roll:{" "}
+      <span className="font-semibold">
+        {selectedMember.role === "member"
+          ? "Medlem"
+          : selectedMember.role === "admin"
+          ? "Admin"
+          : "SuperAdmin"}
+      </span>
+    </p>
 
-                  <label className="mb-1 block text-[11px] text-gray-300">
-                    Ändra roll
-                  </label>
+    <label className="mb-1 block text-[11px] text-gray-300">Ändra roll</label>
 
-                  <select
-                    className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-purple-500 focus:outline-none"
-                    value={selectedMember.role}
-                    onChange={(e) => {
-                      const newRole = e.target.value as MemberRole;
-                      setSelectedMember((prev) =>
-                        prev ? { ...prev, role: newRole } : prev
-                      );
-                    }}
-                  >
-                    <option value="member">Medlem</option>
-                    <option value="admin">Admin</option>
-                    <option value="superadmin">SuperAdmin</option>
-                  </select>
+    <div className="relative">
+      <select
+        className="w-full appearance-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 pr-8 text-xs text-gray-100 focus:border-purple-500 focus:outline-none"
+        value={selectedMember.role}
+        onChange={(e) => {
+          const newRole = e.target.value as MemberRole;
+          setSelectedMember((prev) => (prev ? { ...prev, role: newRole } : prev));
+        }}
+      >
+        <option value="member">Medlem</option>
+        <option value="admin">Admin</option>
+        <option value="superadmin">SuperAdmin</option>
+      </select>
 
-                  <p className="mt-2 text-[10px] text-gray-500">
-                    Endast SuperAdmin kan ändra roller.
-                  </p>
-                </div>
-              )}
+      {/* Dropdown-indikator */}
+      <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M5.25 7.5L10 12.25 14.75 7.5" />
+        </svg>
+      </div>
+    </div>
+
+    <p className="mt-2 text-[10px] text-gray-500">
+      Endast SuperAdmin kan ändra roller.
+    </p>
+  </div>
+)}
 
               {/* Grundinfo */}
               <div className="mb-4 space-y-2 text-sm">
@@ -1758,64 +1741,60 @@ useEffect(() => {
                         </p>
                       </>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-2 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
                         <div>
-                          <label className="mb-1 block text-[11px] text-gray-300">
-                            Nuvarande grad
-                          </label>
-                          <select
-                            className="w-full rounded-md border border-gray-700 bg-black/70 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
-                            value={editingBeltRank}
-                            onChange={(e) => {
-                              const newCurrent = e.target.value as BeltRank;
-                              const newNext = getNextBeltRank(newCurrent);
-                              const newRequired =
-                                getRequiredSessionsForNextBelt(
-                                  newCurrent,
-                                  newNext
-                                );
+                          <div>
+  <label className="mb-1 block text-[11px] text-gray-300">
+    Nuvarande grad
+  </label>
 
-                              setEditingBeltRank(newCurrent);
+  <div className="relative">
+    <select
+      className="w-full appearance-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 pr-8 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+      value={editingBeltRank}
+      onChange={(e) => {
+        const newCurrent = e.target.value as BeltRank;
+        const newNext = getNextBeltRank(newCurrent);
+        const newRequired = getRequiredSessionsForNextBelt(newCurrent, newNext);
 
-                              setSelectedMember((prev) => {
-                                if (!prev || !editingGradingStatus) return prev;
+        setEditingBeltRank(newCurrent);
 
-                                const updatedLocal = {
-                                  ...prev,
-                                  beltRank: newCurrent,
-                                  nextBeltRank: newNext,
-                                  requiredSessions: newRequired,
-                                };
+        setSelectedMember((prev) => {
+          if (!prev || !editingGradingStatus) return prev;
 
-                                const newProgress = calculateProgress(
-                                  editingGradingStatus,
-                                  updatedLocal.attendedSessions,
-                                  updatedLocal.requiredSessions,
-                                  editingPhysicalEnabled
-                                );
+          const updatedLocal = {
+            ...prev,
+            beltRank: newCurrent,
+            nextBeltRank: newNext,
+            requiredSessions: newRequired,
+          };
 
-                                return { ...updatedLocal, progress: newProgress };
-                              });
-                            }}
-                          >
-                            {beltOrder.map((b) => (
-                              <option key={b} value={b}>
-                                {getBeltLabel(b)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+          const newProgress = calculateProgress(
+            editingGradingStatus,
+            updatedLocal.attendedSessions,
+            updatedLocal.requiredSessions,
+            editingPhysicalEnabled
+          );
 
-                        <div>
-                          <label className="mb-1 block text-[11px] text-gray-300">
-                            Nästa grad (auto)
-                          </label>
-                          <div className="rounded-md border border-gray-700 bg-black/40 px-2 py-1 text-xs text-gray-100">
-                            {getBeltLabel(getNextBeltRank(editingBeltRank))}
-                          </div>
-                        </div>
+          return { ...updatedLocal, progress: newProgress };
+        });
+      }}
+    >
+      {beltOrder.map((b) => (
+        <option key={b} value={b}>
+          {getBeltLabel(b)}
+        </option>
+      ))}
+    </select>
 
-                        <div>
+    {/* Dropdown-indikator */}
+    <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M5.25 7.5L10 12.25 14.75 7.5" />
+      </svg>
+    </div>
+  </div>
+</div>
                           <label className="mb-1 block text-[11px] text-gray-300">
                             Kräver antal pass (auto)
                           </label>
@@ -1870,7 +1849,7 @@ useEffect(() => {
               )}
 
               {/* Graderingsstatus */}
-              <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
+              <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
                 <p className="mb-2 text-xs font-semibold text-gray-200">
                   Graderingsstatus
                 </p>
@@ -2053,42 +2032,39 @@ useEffect(() => {
               </div>
 
               {/* Kommentar */}
-              <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                <p className="mb-2 text-xs font-semibold text-gray-200">
-                  Kommentar till medlem
-                </p>
-                {sessionRole === "member" ? (
-                  selectedMember.visibility.showMemberComment ? (
-                    <p className="text-xs text-gray-200 whitespace-pre-line">
-                      {selectedMember.memberComment || "Ingen kommentar ännu."}
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-gray-500">
-                      Denna information är inte tillgänglig.
-                    </p>
-                  )
-                ) : (
-                  <textarea
-                    className="h-20 w-full resize-none rounded-md border border-gray-700 bg-black/60 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
-                    value={editingMemberComment}
-                    onChange={(e) => setEditingMemberComment(e.target.value)}
-                  />
-                )}
-              </div>
+<div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+  <p className="mb-2 text-xs font-semibold text-cyan-100">Kommentar till medlem</p>
+
+  {sessionRole === "member" ? (
+    selectedMember.visibility.showMemberComment ? (
+      <p className="text-xs text-gray-200 whitespace-pre-line">
+        {selectedMember.memberComment || "Ingen kommentar ännu."}
+      </p>
+    ) : (
+      <p className="text-[11px] text-gray-500">Denna information är inte tillgänglig.</p>
+    )
+  ) : (
+    <textarea
+      className="h-20 w-full resize-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+      value={editingMemberComment}
+      onChange={(e) => setEditingMemberComment(e.target.value)}
+    />
+  )}
+</div>
 
               {/* Intern kommentar */}
-              {sessionRole !== "member" && (
-                <div className="mb-4 rounded-lg border border-white/10 bg-black/40 p-3">
-                  <p className="mb-2 text-xs font-semibold text-gray-200">
-                    Intern instruktörskommentar
-                  </p>
-                  <textarea
-                    className="h-20 w-full resize-none rounded-md border border-gray-700 bg-black/60 px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
-                    value={editingInstructorComment}
-                    onChange={(e) => setEditingInstructorComment(e.target.value)}
-                  />
-                </div>
-              )}
+{sessionRole !== "member" && (
+  <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+    <p className="mb-2 text-xs font-semibold text-cyan-100">
+      Intern instruktörskommentar
+    </p>
+    <textarea
+      className="h-20 w-full resize-none rounded-md border border-gray-700 bg-neutral-900/60 px-2 py-1 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+      value={editingInstructorComment}
+      onChange={(e) => setEditingInstructorComment(e.target.value)}
+    />
+  </div>
+)}
             </div>
 
             {/* FOOTER */}
@@ -2098,68 +2074,44 @@ useEffect(() => {
                   type="button"
                   className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-50 hover:bg-emerald-600"
                   onClick={async () => {
-                    try {
-                      setToast({ type: "success", text: "Sparar..." });
-                      setToastVisible(true);
+  try {
+    const beforeId = selectedMember.id;
 
-                      const newCurrent = editingBeltRank;
-                      const newNext = getNextBeltRank(newCurrent);
-                      const newRequired = getRequiredSessionsForNextBelt(
-                        newCurrent,
-                        newNext
-                      );
+    await approveGrading(selectedMember);
 
-                      const updated: Member = {
-                        ...selectedMember,
-                        beltRank: newCurrent,
-                        nextBeltRank: newNext,
-                        requiredSessions: newRequired,
-                        gradingStatus: editingGradingStatus,
-                        progress: calculateProgress(
-                          editingGradingStatus,
-                          selectedMember.attendedSessions,
-                          newRequired,
-                          editingPhysicalEnabled
-                        ),
-                        memberComment: editingMemberComment,
-                        instructorComment: editingInstructorComment,
-                        visibility: editingVisibility,
-                        physicalEnabled: editingPhysicalEnabled,
-                        birthYmd: editingBirthYmd,
-                        role: selectedMember.role,
-                      };
+    // Efter approveGrading har vi uppdaterat selectedMember i state via serverMember.
+    // Men vi behöver även synka edit-state så UI-fälten visar rätt direkt.
+    setSelectedMember((current) => {
+      if (!current || current.id !== beforeId) return current;
 
-                      const res = await fetch("/api/admin/members/update", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(updated),
-                      });
+      // Synka edit-state baserat på nya member-värden
+      setEditingBeltRank(current.beltRank);
+      setEditingGradingStatus(current.gradingStatus);
+      setEditingPhysicalEnabled(current.physicalEnabled);
+      setEditingBirthYmd(current.birthYmd ?? "");
+      setEditingMemberComment(current.memberComment ?? "");
+      setEditingInstructorComment(current.instructorComment ?? "");
+      setEditingVisibility(current.visibility);
 
-                      const json = await res.json().catch(() => null);
+      return current;
+    });
 
-                      if (!res.ok) {
-                        throw new Error(json?.error ?? "Kunde inte uppdatera medlemmen.");
-                      }
-
-                      const serverMember = json.member as Member;
-
-                      setSelectedMember(serverMember);
-                      setMembers((prev) =>
-                        prev.map((m) =>
-                          m.id === serverMember.id ? serverMember : m
-                        )
-                      );
-
-                      setToast({ type: "success", text: "Sparat!" });
-                      setToastVisible(true);
-                      setTimeout(() => setToastVisible(false), 1200);
-                    } catch (err) {
-                      console.error(err);
-                      setToast({ type: "error", text: "Kunde inte spara." });
-                      setToastVisible(true);
-                      setTimeout(() => setToastVisible(false), 2000);
-                    }
-                  }}
+    setToast({
+      type: "success",
+      text: "Gradering godkänd!",
+    });
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 1400);
+  } catch (err) {
+    console.error(err);
+    setToast({
+      type: "error",
+      text: "Kunde inte godkänna.",
+    });
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 2000);
+  }
+}}
                 >
                   Spara ändringar
                 </button>
