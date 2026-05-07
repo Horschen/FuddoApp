@@ -547,6 +547,7 @@ async function updateMemberInSupabase(member: Member) {
 }
 
 async function insertMemberInSupabase(
+  clubId: string,
   member: Omit<Member, "id" | "progress" | "userId">
 ): Promise<Member> {
   const grading = member.gradingStatus;
@@ -555,7 +556,7 @@ async function insertMemberInSupabase(
   const { data, error } = await supabase
     .from("members")
     .insert({
-      club_id: selectedClubId, // <-- OBS: detta kräver att selectedClubId finns i komponenten
+      club_id: clubId,
       first_name: member.firstName,
       last_name: member.lastName,
       age: member.age,
@@ -2337,7 +2338,7 @@ useEffect(() => {
                   };
 
                   try {
-                    const created = await insertMemberInSupabase(base);
+                    const created = await insertMemberInSupabase(selectedClubId, base);
                     setMembers((prev) => [...prev, created]);
                     setIsAddOpen(false);
                   } catch (err) {
