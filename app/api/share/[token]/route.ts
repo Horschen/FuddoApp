@@ -12,8 +12,6 @@ function getSupabaseAdmin() {
   });
 }
 
-const CLUB_ID = "112e386e-5e6b-4657-956e-f202f5558158"; // samma som i karatekas-sidan
-
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ token: string }> }
@@ -40,12 +38,13 @@ export async function GET(
     );
   }
 
-  // 2) Hämta medlemmen
+  // 2) Hämta medlemmen (inkl. club_id)
   const { data: member, error: memberError } = await supabaseAdmin
     .from("members")
     .select(
       `
       id,
+      club_id,
       first_name,
       last_name,
       age,
@@ -75,6 +74,8 @@ export async function GET(
     return NextResponse.json({ error: "Member not found" }, { status: 404 });
   }
 
+  const clubId: string = member.club_id;
+
   // 3) Hämta fysiska krav för medlems nästa bälte (om aktiverat)
   let physicalRequirements: {
     beltRank: string;
@@ -83,11 +84,11 @@ export async function GET(
     squats: number;
   } | null = null;
 
-  if (member.physical_enabled) {
+  if (member.physical_enabled && clubId) {
     const { data: phys, error: physError } = await supabaseAdmin
       .from("physical_requirements")
       .select("belt_rank, pushups, situps, squats")
-      .eq("club_id", CLUB_ID)
+      .eq("club_id", clubId)
       .eq("belt_rank", member.next_belt_rank)
       .maybeSingle();
 
@@ -101,7 +102,63 @@ export async function GET(
     }
   }
 
-  // 4) Skicka tillbaka bara det som får visas
+  // 4) Hämta träningspass för medlemmens klubb
+  let trainingSessions: {
+    id: string;
+    weekday: number;
+    startTime: string;
+    endTime: string;
+    name: string;
+    belts: string[];
+  }[] = [];
+
+  if (clubId) {
+    const { data: sessions, error: sessionsError } = await supabaseAdmin
+      .from("training_sessions")
+      .select(
+        `
+        id,
+        club_id,
+        weekday,
+        start_time,
+        end_time,
+        name,
+        active
+      `
+      )
+      .eq("club_id", clubId)
+      .eq("active", true); // bara aktiva pass
+
+    if (!sessionsError && sessions && sessions.length > 0) {
+      const sessionIds = sessions.map((s: any) => s.id);
+
+      const { data: beltsRows, error: beltsError } = await supabaseAdmin
+        .from("training_session_belts")
+        .select("session_id, belt_rank")
+        .in("session_id", sessionIds);
+
+      const beltsMap: Record<string, string[]> = {};
+      if (!beltsError && beltsRows) {
+        beltsRows.forEach((row: any) => {
+          if (!beltsMap[row.session_id]) {
+            beltsMap[row.session_id] = [];
+          }
+          beltsMap[row.session_id].push(row.belt_rank as string);
+        });
+      }
+
+      trainingSessions = (sessions as any[]).map((s) => ({
+        id: s.id as string,
+        weekday: s.weekday as number,
+        startTime: s.start_time as string,
+        endTime: s.end_time as string,
+        name: (s.name as string) ?? "",
+        belts: beltsMap[s.id] ?? [],
+      }));
+    }
+  }
+
+  // 5) Skicka tillbaka det som får visas
   return NextResponse.json({
     member: {
       id: member.id,
@@ -120,7 +177,8 @@ export async function GET(
         showAge: member.visibility_show_age ?? true,
         showBeltInfo: member.visibility_show_belt_info ?? true,
         showGradingStatus: member.visibility_show_grading_status ?? true,
-        showMemberComment: member.visibility_show_member_comment ?? true,
+        showMemberComment:
+          member.visibility_show_member_comment ?? true,
       },
       gradingStatus: {
         kihon: member.grading_kihon ?? "not_ready",
@@ -131,5 +189,6 @@ export async function GET(
       physicalEnabled: member.physical_enabled ?? false,
       physicalRequirements, // kan vara null
     },
+    trainingSessions,
   });
 }

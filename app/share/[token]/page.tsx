@@ -18,6 +18,15 @@ type VisibilitySettings = {
   showMemberComment: boolean;
 };
 
+type SharedTrainingSession = {
+  id: string;
+  weekday: number;        // 0–6
+  startTime: string;      // "18:00"
+  endTime: string;        // "19:00"
+  name: string;
+  belts: string[];        // t.ex. ["10_kyu","9_kyu"]
+};
+
 type SharedMember = {
   id: string;
   firstName: string;
@@ -40,6 +49,7 @@ type SharedMember = {
     situps: number;
     squats: number;
   } | null;
+  trainingSessions?: SharedTrainingSession[]; // NYTT: kommer från API
 };
 
 /* =========================================================
@@ -78,7 +88,6 @@ function getDisplayAge(m: SharedMember): number {
 }
 
 function formatBeltRankShort(belt: string): string {
-  // Förväntar sig t.ex. "9_kyu" eller "1_dan"
   if (!belt) return "-";
   const [num, type] = belt.split("_");
   if (!num || !type) return belt;
@@ -116,7 +125,7 @@ function gradingLabel(v: GradingStatusValue) {
 }
 
 /* =========================================================
-   STOR TÅRTBIT (samma som internt)
+   STOR TÅRTBIT
 ========================================================= */
 function LargeProgressCircle({ progress }: { progress: number }) {
   const clamped = Math.max(0, Math.min(1, progress));
@@ -151,6 +160,22 @@ function LargeProgressCircle({ progress }: { progress: number }) {
 }
 
 /* =========================================================
+   VECKODAG LABEL
+========================================================= */
+function weekdayLabel(weekday: number): string {
+  const labels = [
+    "Söndag",
+    "Måndag",
+    "Tisdag",
+    "Onsdag",
+    "Torsdag",
+    "Fredag",
+    "Lördag",
+  ];
+  return labels[weekday] ?? `Dag ${weekday}`;
+}
+
+/* =========================================================
    PAGE COMPONENT
 ========================================================= */
 export default function SharePage({
@@ -158,10 +183,12 @@ export default function SharePage({
 }: {
   params: Promise<{ token: string }>;
 }) {
-  // OBS: params är en Promise i client components med din Next-version
   const { token } = React.use(params);
 
   const [member, setMember] = useState<SharedMember | null>(null);
+  const [trainingSessions, setTrainingSessions] = useState<
+    SharedTrainingSession[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -171,13 +198,25 @@ export default function SharePage({
       try {
         const res = await fetch(`/api/share/${token}`, { cache: "no-store" });
         if (!res.ok) {
-          if (!cancelled) setMember(null);
+          if (!cancelled) {
+            setMember(null);
+            setTrainingSessions([]);
+          }
           return;
         }
         const json = await res.json();
-        if (!cancelled) setMember(json.member);
+
+        if (!cancelled) {
+          setMember(json.member as SharedMember);
+          setTrainingSessions(
+            (json.trainingSessions as SharedTrainingSession[]) ?? []
+          );
+        }
       } catch {
-        if (!cancelled) setMember(null);
+        if (!cancelled) {
+          setMember(null);
+          setTrainingSessions([]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -189,10 +228,7 @@ export default function SharePage({
   }, [token]);
 
   function handleClose() {
-    // Försök stänga fönstret/fliken (funkar om sidan öppnats via script)
     window.close();
-
-    // Om det inte gick, gå tillbaka i historiken om möjligt
     if (window.history.length > 1) {
       window.history.back();
     }
@@ -214,6 +250,12 @@ export default function SharePage({
     );
   }
 
+  // Filtrera fram pass för elevens nuvarande grad
+  const belt = member.beltRank;
+  const matchedSessions = trainingSessions.filter((s) =>
+    s.belts.includes(belt)
+  );
+
   return (
     <main className="min-h-screen bg-black/90 text-white px-4 py-6 flex justify-center">
       <div className="w-full max-w-md rounded-xl bg-neutral-950 border border-white/10 p-4 relative">
@@ -230,10 +272,9 @@ export default function SharePage({
           {member.firstName} {member.lastName}
         </h1>
 
-        {/* Bild + tårta (större avatar, tårta under bilden) */}
+        {/* Bild + tårta */}
         <div className="mb-4 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            {/* Stor profilbild */}
             <Image
               src={member.avatarUrl}
               alt={member.firstName}
@@ -241,12 +282,11 @@ export default function SharePage({
               height={132}
               className="h-[10.25rem] w-[10.25rem] rounded-full object-cover"
             />
-
-            {/* Tårta under bilden */}
             <LargeProgressCircle progress={member.progress ?? 0} />
           </div>
         </div>
 
+        {/* Ålder / bälten */}
         {(member.visibility.showAge || member.visibility.showBeltInfo) && (
           <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3 text-sm">
             {member.visibility.showAge && (
@@ -277,8 +317,34 @@ export default function SharePage({
           </div>
         )}
 
-        
-         {member.visibility.showGradingStatus && (
+{/* NY: Träningstider */}
+        <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
+          <p className="mb-2 text-xs font-semibold text-cyan-100">
+            Träningstider
+          </p>
+
+          {matchedSessions.length === 0 ? (
+            <p className="text-xs text-gray-300">
+              Inga specifika träningstider registrerade för denna grad ännu.
+            </p>
+          ) : (
+            <ul className="space-y-1 text-xs text-gray-200">
+              {matchedSessions
+                .sort((a, b) => a.weekday - b.weekday || a.startTime.localeCompare(b.startTime))
+                .map((s) => (
+                  <li key={s.id}>
+                    <span className="font-semibold">
+                      {weekdayLabel(s.weekday)} {s.startTime}–{s.endTime}
+                    </span>
+                    {s.name && <> – <span>{s.name}</span></>}
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Graderingsstatus (oförändrat) */}
+        {member.visibility.showGradingStatus && (
           <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
             <p className="mb-2 text-xs font-semibold text-cyan-100">
               Graderingsstatus
@@ -305,7 +371,6 @@ export default function SharePage({
 
               {member.physicalEnabled && (
                 <>
-                  {/* Rad för Fysik */}
                   {(() => {
                     const { label, className } = gradingLabel(
                       member.gradingStatus.physical
@@ -322,7 +387,6 @@ export default function SharePage({
                     );
                   })()}
 
-                  {/* Lista fysiska krav under Fysik */}
                   {member.physicalRequirements ? (
                     <div className="mt-1 text-[10px] text-gray-300">
                       <p className="mb-1 font-semibold text-gray-200">
@@ -360,7 +424,8 @@ export default function SharePage({
           </div>
         )}
 
-       {member.visibility.showMemberComment && (
+        {/* Kommentar + förklaring */}
+        {member.visibility.showMemberComment && (
           <div className="mb-4 rounded-lg border-2 border-cyan-500/50 bg-black/40 p-3">
             <p className="mb-2 text-xs font-semibold text-cyan-100">
               Kommentar
@@ -369,7 +434,6 @@ export default function SharePage({
               {member.memberComment || "Ingen kommentar ännu."}
             </p>
 
-            {/* Förklaring till progress‑cirkeln under kommentaren */}
             <div className="mt-3 rounded-md border border-gray-700 bg-black/40 px-2 py-2 text-[11px] text-gray-300">
               <p className="mb-1 font-semibold text-gray-100">
                 Detta betyder progress‑cirkeln:
@@ -382,13 +446,15 @@ export default function SharePage({
                 Vad ingår i bedömningen?
               </p>
               <p>
-                - Antal pass: {member.attendedSessions}/{member.requiredSessions} pass
+                - Antal pass:{" "}
+                {member.attendedSessions}/{member.requiredSessions} pass
               </p>
               <p>- Godkänd Kihon, Kata och Kumite</p>
               <p>- Ev. fysiskt krav om det är aktiverat</p>
             </div>
           </div>
         )}
+       
       </div>
     </main>
   );

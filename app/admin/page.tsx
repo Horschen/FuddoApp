@@ -133,15 +133,31 @@ export default function AdminPage() {
       </header>
 
       <h1 className="text-xl font-bold mb-3">Adminpanel</h1>
-      {session.role === "superadmin" && (
-  <button
-    type="button"
-    className="mb-4 w-full rounded-md bg-purple-700 px-4 py-2 text-center text-sm font-semibold transition hover:bg-purple-600"
-    onClick={() => router.push("/admin/clubs")}
-  >
-    Hantera klubbar
-  </button>
-)}
+
+      {/* --- KNAPPAR FÖR ADMIN / SUPERADMIN --- */}
+      {(session.role === "admin" || session.role === "superadmin") && (
+        <div className="mb-4 flex flex-col gap-2">
+          {/* Träningsschema-knapp för både Admin och SuperAdmin */}
+          <button
+            type="button"
+            className="w-full rounded-md bg-emerald-700 px-4 py-2 text-center text-sm font-semibold transition hover:bg-emerald-600"
+            onClick={() => router.push("/admin/training")}
+          >
+            Träningsschema
+          </button>
+
+          {/* Hantera klubbar – endast SuperAdmin (som tidigare) */}
+          {session.role === "superadmin" && (
+            <button
+              type="button"
+              className="w-full rounded-md bg-purple-700 px-4 py-2 text-center text-sm font-semibold transition hover:bg-purple-600"
+              onClick={() => router.push("/admin/clubs")}
+            >
+              Hantera klubbar
+            </button>
+          )}
+        </div>
+      )}
 
       <p className="text-sm text-gray-300 mb-4">
         Här bygger vi steg för steg upp verktyg för Admin och SuperAdmin.
@@ -151,17 +167,15 @@ export default function AdminPage() {
         <div className="rounded-lg border border-white/10 bg-neutral-900 p-3">
           <h2 className="text-sm font-semibold mb-1">Översikt</h2>
           <p className="text-xs text-gray-300">
-            Du är inloggad som <span className="font-semibold">{roleLabel}</span>
-            . Senare kan vi härifrån styra vilka funktioner som är synliga för
+            Du är inloggad som <span className="font-semibold">{roleLabel}</span>.
+            Senare kan vi härifrån styra vilka funktioner som är synliga för
             olika roller, se loggar, hantera träningsschema osv.
           </p>
         </div>
 
         {session.role === "superadmin" && (
           <div className="rounded-lg border border-purple-500/40 bg-purple-950/20 p-3 space-y-3">
-            <h2 className="text-sm font-semibold mb-1">
-              Endast för SuperAdmin
-            </h2>
+            <h2 className="text-sm font-semibold mb-1">Endast för SuperAdmin</h2>
             <p className="text-xs text-gray-200">
               Detta block syns bara för SuperAdmin. Här kan vi lägga globala
               klubbinställningar, loggvisning, export av data m.m.
@@ -169,46 +183,60 @@ export default function AdminPage() {
 
             <div className="mt-2 rounded-md border border-white/10 bg-black/40 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-  <span className="text-xs font-semibold text-gray-100">
-    Senaste admin‑ändringar
-  </span>
+                <span className="text-xs font-semibold text-gray-100">
+                  Senaste admin‑ändringar
+                </span>
 
-  <div className="flex items-center gap-2">
-    {logsLoading && (
-      <span className="text-[10px] text-gray-400">Laddar loggar...</span>
-    )}
+                <div className="flex items-center gap-2">
+                  {logsLoading && (
+                    <span className="text-[10px] text-gray-400">
+                      Laddar loggar...
+                    </span>
+                  )}
 
-    <button
-      type="button"
-      className="rounded-md bg-red-700 px-2 py-1 text-[10px] font-semibold text-red-50 hover:bg-red-600"
-      onClick={async () => {
-        const ok = confirm("Rensa ALLA loggar? Detta går inte att ångra.");
-        if (!ok) return;
+                  <button
+                    type="button"
+                    className="rounded-md bg-red-700 px-2 py-1 text-[10px] font-semibold text-red-50 hover:bg-red-600"
+                    onClick={async () => {
+                      const ok = confirm(
+                        "Rensa ALLA loggar? Detta går inte att ångra."
+                      );
+                      if (!ok) return;
 
-        const res = await fetch("/api/admin/logs/clear", { method: "POST" });
-        const json = await res.json().catch(() => null);
+                      const res = await fetch("/api/admin/logs/clear", {
+                        method: "POST",
+                      });
+                      const json = await res.json().catch(() => null);
 
-        if (!res.ok) {
-          alert(json?.error ?? "Kunde inte rensa loggar.");
-          return;
-        }
+                      if (!res.ok) {
+                        alert(json?.error ?? "Kunde inte rensa loggar.");
+                        return;
+                      }
 
-        // Ladda om loggar efter rensning
-        const logsRes = await fetch("/api/admin/logs", { cache: "no-store" });
-        const logsJson = await logsRes.json().catch(() => null);
-        setLogs(Array.isArray(logsJson?.logs) ? logsJson.logs : []);
-        setLogsLimit(typeof logsJson?.limit === "number" ? logsJson.limit : null);
-      }}
-    >
-      Rensa loggar
-    </button>
-  </div>
-</div>
+                      // Ladda om loggar efter rensning
+                      const logsRes = await fetch("/api/admin/logs", {
+                        cache: "no-store",
+                      });
+                      const logsJson = await logsRes.json().catch(() => null);
+                      setLogs(
+                        Array.isArray(logsJson?.logs) ? logsJson.logs : []
+                      );
+                      setLogsLimit(
+                        typeof logsJson?.limit === "number"
+                          ? logsJson.limit
+                          : null
+                      );
+                    }}
+                  >
+                    Rensa loggar
+                  </button>
+                </div>
+              </div>
 
-<div className="text-[10px] text-gray-400 mb-2">
-  Visar {logs.length}
-  {logsLimit ? ` av ${logsLimit}` : ""} senaste loggar
-</div>
+              <div className="text-[10px] text-gray-400 mb-2">
+                Visar {logs.length}
+                {logsLimit ? ` av ${logsLimit}` : ""} senaste loggar
+              </div>
 
               {logs.length === 0 && !logsLoading && (
                 <p className="text-[11px] text-gray-400">Inga loggar ännu.</p>
