@@ -26,22 +26,17 @@ async function requireAdminOrSuperadmin(request: Request) {
   );
 
   const token = cookies["admin_session"];
-  if (!token)
+  if (!token) {
     return { ok: false as const, status: 401 as const, error: "Inte inloggad." };
+  }
 
   try {
     const secret = getAdminSessionSecret();
     const { payload } = await jwtVerify(token, secret);
     const role = (payload.role as string) ?? "member";
-
     if (role !== "admin" && role !== "superadmin") {
-      return {
-        ok: false as const,
-        status: 403 as const,
-        error: "Saknar behörighet.",
-      };
+      return { ok: false as const, status: 403 as const, error: "Saknar behörighet." };
     }
-
     return { ok: true as const };
   } catch {
     return { ok: false as const, status: 401 as const, error: "Ogiltig session." };
@@ -57,8 +52,7 @@ function isUuid(v: any): v is string {
 
 export async function GET(request: Request) {
   const auth = await requireAdminOrSuperadmin(request);
-  if (!auth.ok)
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get("sessionId");
@@ -73,25 +67,38 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseAdmin();
 
+  // Hämta ALLA relevanta typer för pass+datum
   const { data, error } = await supabase
     .from("attendance_logs")
-    .select("id, member_id")
+    .select("id, member_id, type")
     .eq("session_id", sessionId)
     .eq("date", date)
-    .eq("type", "regular");
+    .in("type", ["regular", "extra", "instructor"]);
 
   if (error) {
     console.error("attendance/forSession error:", error);
     return NextResponse.json({ error: "Kunde inte hämta närvaro." }, { status: 500 });
   }
 
-  // Returnera en "map": memberId -> attendanceLogId
-  const present: Record<string, string> = {};
+  // regular: memberId -> logId
+  const regular: Record<string, string> = {};
+  // extra: memberId -> [logId,...]
+  const extra: Record<string, string[]> = {};
+  // instructor: memberId -> logId
+  const instructor: Record<string, string> = {};
+
   (data ?? []).forEach((r: any) => {
-    if (r?.member_id && r?.id) {
-      present[r.member_id] = r.id;
+    if (!r?.member_id || !r?.id || !r?.type) return;
+
+    if (r.type === "regular") {
+      regular[r.member_id] = r.id;
+    } else if (r.type === "extra") {
+      extra[r.member_id] = extra[r.member_id] ?? [];
+      extra[r.member_id].push(r.id);
+    } else if (r.type === "instructor") {
+      instructor[r.member_id] = r.id;
     }
   });
 
-  return NextResponse.json({ present });
+  return NextResponse.json({ regular, extra, instructor });
 }
