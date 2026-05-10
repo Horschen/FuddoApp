@@ -474,6 +474,10 @@ export default function AttendancePage() {
           Välj dagens pass och registrera närvaro.
         </p>
 
+<p className="mb-2 text-[11px] text-gray-500">
+  Version: 93db8ea2df0964c6687288e8dc3fe9095de0c3f6
+</p>
+
         {/* PASSVAL */}
         <div className="mb-3">
   <label className="mb-1 block text-[11px] text-gray-300">Datum</label>
