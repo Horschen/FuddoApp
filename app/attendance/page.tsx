@@ -51,9 +51,9 @@ function weekdayLabel(weekday: number): string {
   return labels[weekday] ?? `Dag ${weekday}`;
 }
 
-function todayWeekday(): number {
-  // 0=sön..6=lör (lokalt)
-  return new Date().getDay();
+function weekdayFromYmd(ymd: string): number {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  return d.getUTCDay(); // 0=sön..6=lör
 }
 
 export default function AttendancePage() {
@@ -70,6 +70,9 @@ export default function AttendancePage() {
   const [sessionsError, setSessionsError] = useState<string | null>(null);
 
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+  new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+);
 
   const [members, setMembers] = useState<Member[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
@@ -164,11 +167,11 @@ export default function AttendancePage() {
   }, [clubLoading, selectedClubId, isLoggedInAdmin]);
 
   const todaysSessions = useMemo(() => {
-    const wd = todayWeekday();
-    return sessions
-      .filter((s) => s.weekday === wd)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [sessions]);
+  const wd = weekdayFromYmd(selectedDate);
+  return sessions
+    .filter((s) => s.weekday === wd)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+}, [sessions, selectedDate]);
 
   const selectedSession = useMemo(() => {
     if (!selectedSessionId) return null;
@@ -242,7 +245,7 @@ export default function AttendancePage() {
     try {
       setPresenceLoading(true);
 
-      const date = todayUtcYmd();
+      const date = selectedDate;
 
       const res = await fetch(
         `/api/admin/attendance/forSession?sessionId=${encodeURIComponent(
@@ -293,7 +296,7 @@ export default function AttendancePage() {
     if (!isLoggedInAdmin) return;
     loadPresenceForSelectedSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSessionId]);
+  }, [selectedSessionId, selectedDate]);
 
   const matchedMembers = useMemo(() => {
     if (!selectedSession) return [];
@@ -472,8 +475,23 @@ export default function AttendancePage() {
         </p>
 
         {/* PASSVAL */}
+        <div className="mb-3">
+  <label className="mb-1 block text-[11px] text-gray-300">Datum</label>
+  <input
+    type="date"
+    className="w-full rounded-md border border-gray-700 bg-neutral-900/70 px-2 py-2 text-xs text-gray-100 focus:border-cyan-500 focus:outline-none"
+    value={selectedDate}
+    onChange={(e) => {
+      setSelectedDate(e.target.value);
+      setSelectedSessionId(""); // nytt passval när datum ändras
+    }}
+  />
+  <p className="mt-1 text-[11px] text-gray-400">
+    Veckodag: {weekdayLabel(weekdayFromYmd(selectedDate))}
+  </p>
+</div>
         <div className="w-full max-w-md rounded-lg border-2 border-cyan-500/50 bg-black/70 p-4 mb-4">
-          <p className="mb-2 text-xs font-semibold text-cyan-100">Dagens pass</p>
+          <p className="mb-2 text-xs font-semibold text-cyan-100">Pass (välj datum)</p>
 
           {sessionsLoading && (
             <p className="text-xs text-gray-300">Laddar träningspass...</p>
@@ -484,7 +502,7 @@ export default function AttendancePage() {
 
           {!sessionsLoading && !sessionsError && todaysSessions.length === 0 && (
             <p className="text-xs text-gray-300">
-              Inga pass registrerade för idag ({weekdayLabel(todayWeekday())}).
+              Inga pass registrerade för valt datum ({weekdayLabel(weekdayFromYmd(selectedDate))}).
             </p>
           )}
 
