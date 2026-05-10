@@ -310,6 +310,14 @@ export default function HomePage() {
               Klubbmedlemmar
             </button>
 
+            <button
+  type="button"
+  className="w-full rounded-md bg-cyan-700 px-4 py-2 text-center text-sm font-semibold transition hover:bg-cyan-600"
+  onClick={() => router.push("/attendance")}
+>
+  Närvaro
+</button>
+
             {/* Träningsschema-knappen borttagen enligt önskemål */}
 
             <button
